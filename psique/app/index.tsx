@@ -8,21 +8,22 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  SafeAreaView,
   KeyboardAvoidingView,
   ScrollView
 } from 'react-native';
+// CORREÇÃO: Usando a biblioteca certa para Safe Area
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useAuth } from '../src/contexts/AuthContexts';
+// CORREÇÃO: Caminho apontando para src
+import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const { login, loginWithGoogle, isAuthenticated, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated === true) {
@@ -52,12 +53,10 @@ export default function LoginScreen() {
     try {
       const result = await login(email);
       
-      if (result.success) {
-        // Redirecionamento automático via useEffect
-      } else {
+      if (!result.success) {
         setError(result.message || 'Email não encontrado');
         
-        if (result.message?.includes('não encontrado')) {
+        if (result.message?.includes('não encontrado') || result.message?.includes('criar')) {
           Alert.alert(
             'Email não cadastrado',
             'Deseja criar uma conta com este email?',
@@ -84,14 +83,14 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async () => {
     try {
-      setGoogleLoading(true);
-      // Implementar lógica de login com Google aqui
-      Alert.alert('Em breve', 'Login com Google em desenvolvimento');
+      const result = await loginWithGoogle();
+      
+      if (!result.success && result.message !== 'Login cancelado ou falhou') {
+        Alert.alert('Atenção', result.message || 'Não foi possível entrar com Google');
+      }
     } catch (error) {
       console.error('Erro no login com Google:', error);
-      Alert.alert('Erro', 'Não foi possível fazer login com Google');
-    } finally {
-      setGoogleLoading(false);
+      Alert.alert('Erro', 'Ocorreu um erro inesperado');
     }
   };
 
@@ -118,13 +117,10 @@ export default function LoginScreen() {
         >
           
           <View style={styles.content}>
-            
-            {/* Cabeçalho minimalista */}
             <View style={styles.header}>
               <Text style={styles.logo}>psique</Text>
             </View>
             
-            {/* Conteúdo central */}
             <View style={styles.center}>
               <Text style={styles.tagline}>Vida real acima de aparência</Text>
               
@@ -137,7 +133,6 @@ export default function LoginScreen() {
                 Entre com seu email pra{'\n'}encontrar rolês incríveis.
               </Text>
               
-              {/* Campo de email */}
               <View style={styles.inputContainer}>
                 <TextInput
                   style={[styles.input, error && styles.inputError]}
@@ -151,41 +146,37 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
-                  editable={!isLoading && !googleLoading}
-                  autoFocus
+                  editable={!isLoading}
                 />
                 {error && <Text style={styles.errorText}>{error}</Text>}
               </View>
               
-              {/* Botão de login com email */}
               <TouchableOpacity 
                 style={[styles.button, isLoading && styles.buttonDisabled]}
                 onPress={handleLogin}
-                disabled={isLoading || googleLoading}
+                disabled={isLoading}
                 activeOpacity={0.8}
               >
-                {isLoading ? (
+                {isLoading && !authLoading ? (
                   <ActivityIndicator color={Colors.black} />
                 ) : (
                   <Text style={styles.buttonText}>Entrar com email</Text>
                 )}
               </TouchableOpacity>
               
-              {/* Divisor */}
               <View style={styles.orContainer}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.orText}>ou</Text>
                 <View style={styles.dividerLine} />
               </View>
               
-              {/* Botão de login com Google */}
               <TouchableOpacity 
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                style={[styles.googleButton, isLoading && styles.buttonDisabled]}
                 onPress={handleGoogleLogin}
-                disabled={googleLoading || isLoading}
+                disabled={isLoading}
                 activeOpacity={0.8}
               >
-                {googleLoading ? (
+                {authLoading ? (
                   <ActivityIndicator color={Colors.black} />
                 ) : (
                   <>
@@ -204,16 +195,14 @@ export default function LoginScreen() {
               </Text>
             </View>
             
-            {/* Link para recuperação (sutil) */}
             <TouchableOpacity
               style={styles.forgotButton}
               onPress={handleForgotPassword}
-              disabled={isLoading || googleLoading}
+              disabled={isLoading}
             >
               <Text style={styles.forgotText}>Esqueceu sua conta?</Text>
             </TouchableOpacity>
             
-            {/* Footer */}
             <Text style={styles.footer}>
               Conexões reais • Intenção real
             </Text>
@@ -269,7 +258,7 @@ const styles = StyleSheet.create({
   heroLine1: {
     fontSize: 56,
     fontWeight: '300',
-    fontFamily: 'Inter-Light',
+    fontFamily: 'Inter-Regular', 
     color: Colors.black,
     textAlign: 'center',
     lineHeight: 56,
@@ -375,7 +364,7 @@ const styles = StyleSheet.create({
   googleIconText: {
     color: Colors.white,
     fontSize: 14,
-    fontFamily: 'Inter-Bold',
+    fontWeight: 'bold',
   },
   googleButtonText: {
     ...Typography.button,

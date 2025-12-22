@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { 
   getUserId, 
   getUserData, 
@@ -11,11 +13,15 @@ import {
   UserData
 } from '../api/api';
 
+// Configura o WebBrowser para fechar corretamente após o login
+WebBrowser.maybeCompleteAuthSession();
+
 interface AuthContextData {
   isAuthenticated: boolean | null;
   user: UserData | null;
   loading: boolean;
   login: (email: string) => Promise<{ success: boolean; message?: string; user?: UserData }>;
+  loginWithGoogle: () => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (userData: Partial<UserData>) => Promise<void>;
@@ -24,19 +30,101 @@ interface AuthContextData {
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
+// Função auxiliar simples para decodificar JWT sem bibliotecas externas
+const decodeJwt = (token: string) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+};
+
+// Polyfill básico para atob no React Native caso não exista
+if (!global.atob) {
+  global.atob = (input: string) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    let str = input.replace(/=+$/, '');
+    let output = '';
+    if (str.length % 4 == 1) {
+      throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
+    }
+    for (let bc = 0, bs = 0, buffer, i = 0;
+      buffer = str.charAt(i++);
+      ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer,
+        bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0
+    ) {
+      buffer = chars.indexOf(buffer);
+    }
+    return output;
+  };
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Função para fazer login com email
+  // === LOGIN COM GOOGLE (NOVO) ===
+  const loginWithGoogle = async () => {
+    try {
+      setLoading(true);
+      
+      // 1. Define a URL de redirecionamento do App (Deep Link)
+      const redirectUri = Linking.createURL('/'); 
+      
+      // 2. Monta a URL para abrir o seu Eros Auth
+      // AVISO: Certifique-se que o VITE_APP_URL no Netlify do Borababy 
+      // esteja apontando para este redirectUri ou que você trate isso lá.
+      // Por enquanto, abriremos a home e o usuário loga.
+      const authUrl = 'https://borababy.netlify.app'; 
+
+      console.log('🌐 Abrindo navegador para:', authUrl);
+
+      // 3. Abre o navegador interno
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+
+      // 4. Verifica se voltou com sucesso e com Token
+      if (result.type === 'success' && result.url) {
+        // Extrai o g_token da URL de retorno
+        const { queryParams } = Linking.parse(result.url);
+        const gToken = queryParams?.['g_token'];
+
+        if (typeof gToken === 'string') {
+          console.log('🔑 Token recebido do Google!');
+          
+          // Decodifica o token para pegar o email
+          const decoded = decodeJwt(gToken);
+          if (decoded && decoded.email) {
+            console.log('📧 Email recuperado do token:', decoded.email);
+            
+            // Reutiliza a função de login existente usando o email validado pelo Google
+            return await login(decoded.email);
+          }
+        }
+      }
+
+      return { success: false, message: 'Login cancelado ou falhou' };
+
+    } catch (error: any) {
+      console.error('❌ Erro no Login Google:', error);
+      return { success: false, message: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // === LOGIN PADRÃO (MANTIDO) ===
   const login = async (email: string) => {
     try {
       setLoading(true);
       
       console.log('🔍 Iniciando login para email:', email);
       
-      // Validação básica de email
       if (!email.trim()) {
         return { success: false, message: 'Digite seu email' };
       }
@@ -66,7 +154,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (saved) {
           console.log('💾 Sessão salva com sucesso');
           
-          // Atualiza o estado do contexto
           setUser({
             ...result.userData,
             id: result.userId,
@@ -103,7 +190,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Função para fazer logout
   const logout = async () => {
     try {
       setLoading(true);
@@ -119,7 +205,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Função para verificar autenticação
   const checkAuth = async () => {
     try {
       setLoading(true);
@@ -140,7 +225,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsAuthenticated(true);
           console.log('✅ Usuário autenticado:', userData.nome);
         } else {
-          // Dados inconsistentes, faz logout
           await clearSession();
           setIsAuthenticated(false);
           setUser(null);
@@ -160,14 +244,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Função para atualizar dados do usuário localmente
   const updateUser = async (userData: Partial<UserData>) => {
     try {
       if (user) {
         const updatedUser = { ...user, ...userData };
         setUser(updatedUser);
         
-        // Atualiza também no AsyncStorage
         await saveUserSession(
           user.id,
           updatedUser,
@@ -182,7 +264,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Função para atualizar dados do usuário da API
   const refreshUserData = async () => {
     try {
       if (user?.email) {
@@ -212,26 +293,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Verifica autenticação ao inicializar
   useEffect(() => {
     checkAuth();
     
-    // Opcional: Verificar autenticação periodicamente
     const interval = setInterval(() => {
       if (isAuthenticated) {
         checkAuth();
       }
-    }, 5 * 60 * 1000); // A cada 5 minutos
+    }, 5 * 60 * 1000); 
     
     return () => clearInterval(interval);
   }, []);
 
-  // Valores do contexto
   const contextValue: AuthContextData = {
     isAuthenticated,
     user,
     loading,
     login,
+    loginWithGoogle, // Exportando a nova função
     logout,
     checkAuth,
     updateUser,
@@ -245,7 +324,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-// Hook personalizado para usar o contexto
 export const useAuth = () => {
   const context = useContext(AuthContext);
   

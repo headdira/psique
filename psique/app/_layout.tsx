@@ -2,7 +2,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { ActivityIndicator, View } from 'react-native';
-import { AuthProvider } from '../src/contexts/AuthContexts';
+// CORREÇÃO: Adicionado '../src/' e removido o 's' do final do arquivo
+import { AuthProvider } from '../src/contexts/AuthContext';
 import { Colors } from '../src/theme';
 
 export default function RootLayout() {
@@ -51,6 +52,15 @@ export default function RootLayout() {
             headerShown: false 
           }} 
         />
+        <Stack.Screen 
+          name="HomeScreen" 
+          options={{ 
+            headerShown: false,
+            // Isso previne voltar para o login com gesto de arrastar
+            gestureEnabled: false 
+          }} 
+        />
+        {/* Caso o arquivo se chame home.tsx (minúsculo), mantenha esta linha também */}
         <Stack.Screen 
           name="home" 
           options={{ 

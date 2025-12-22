@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Configurações da API
 const CLIENTES_API_URL = 'https://narciso-v1.netlify.app/clientes';
-const X_API_KEY = 'bb_live_9f8e3c7a2d1b4e6f0a9c5b8d7e4a1c6b2f0d9e8a7c4b3a2d1e6f5c8b9'; // Substitua pela sua chave real
+const X_API_KEY = 'bb_live_9f8e3c7a2d1b4e6f0a9c5b8d7e4a1c6b2f0d9e8a7c4b3a2d1e6f5c8b9';
 
 const api = axios.create({
   baseURL: CLIENTES_API_URL,
@@ -23,8 +23,8 @@ const STORAGE_KEYS = {
   SESSION_TOKEN: '@psique:session_token',
 } as const;
 
-// Tipos
-interface UserData {
+// === AQUI ESTAVA O ERRO: Adicionado 'export' ===
+export interface UserData {
   id: string;
   email: string;
   nome: string;
@@ -42,7 +42,6 @@ export const saveUserSession = async (userId: string, userData: any, email: stri
       [STORAGE_KEYS.USER_ID, userId],
       [STORAGE_KEYS.USER_DATA, JSON.stringify(userData)],
       [STORAGE_KEYS.USER_EMAIL, email],
-      // Criamos um token de sessão simples baseado no timestamp
       [STORAGE_KEYS.SESSION_TOKEN, Date.now().toString()],
     ]);
     return true;
@@ -161,7 +160,6 @@ export const clientesApi = {
   // Cria novo cliente (se necessário)
   createCliente: async (clienteData: any) => {
     try {
-      // Nota: Sua API pode não ter endpoint POST, ajuste conforme necessário
       const response = await api.post('', clienteData);
       return response.data;
     } catch (error) {

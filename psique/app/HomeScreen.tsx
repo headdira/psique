@@ -7,57 +7,40 @@ import {
   Image,
   ActivityIndicator,
   ScrollView,
-  SafeAreaView,
   Alert,
 } from 'react-native';
+// CORREÇÃO: Usando a biblioteca certa para Safe Area
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useAuth } from '../src/contexts/AuthContexts'; // CORRIGIDO: AuthContext, não AuthContexts
+// CORREÇÃO: Caminho apontando para src
+import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../src/theme/index';
 
 export default function HomeScreen() {
   const { isAuthenticated, user, loading, logout, checkAuth } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
 
-  // Efeito para verificar autenticação
   useEffect(() => {
-    console.log('🔍 [HomeScreen] useEffect - Verificando autenticação...');
-    console.log('🔍 [HomeScreen] Estado inicial:', {
-      isAuthenticated,
-      loading,
-      user: user ? `Sim (${user.nome})` : 'Não',
-    });
-
+    console.log('🔍 [HomeScreen] Verificando autenticação...');
+    
     const verifyAuth = async () => {
       try {
         setIsChecking(true);
-        console.log('🔄 [HomeScreen] Chamando checkAuth...');
         await checkAuth();
       } catch (error) {
-        console.error('❌ [HomeScreen] Erro ao verificar autenticação:', error);
+        console.error('❌ [HomeScreen] Erro:', error);
       } finally {
         setIsChecking(false);
-        console.log('✅ [HomeScreen] Verificação concluída');
       }
     };
 
     verifyAuth();
   }, []);
 
-  // Efeito para redirecionar se não autenticado
   useEffect(() => {
-    console.log('🔄 [HomeScreen] Monitorando autenticação:', {
-      isAuthenticated,
-      loading,
-      isChecking,
-    });
-
     if (!loading && !isChecking && isAuthenticated === false) {
-      console.log('🚫 [HomeScreen] Usuário não autenticado, redirecionando...');
+      console.log('🚫 [HomeScreen] Não autenticado -> Redirecionando para Login');
       router.replace('/');
-    }
-
-    if (isAuthenticated === true) {
-      console.log('✅ [HomeScreen] Usuário autenticado!', user?.nome);
     }
   }, [isAuthenticated, loading, isChecking]);
 
@@ -71,9 +54,7 @@ export default function HomeScreen() {
           text: 'Sair', 
           style: 'destructive',
           onPress: async () => {
-            console.log('🔄 [HomeScreen] Iniciando logout...');
             await logout();
-            console.log('✅ [HomeScreen] Logout concluído');
             router.replace('/');
           }
         }
@@ -94,33 +75,22 @@ export default function HomeScreen() {
     }
   };
 
-  // Loading state
   if (loading || isChecking) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
         <Text style={styles.loadingText}>Carregando sua vibe...</Text>
-        {__DEV__ && (
-          <Text style={styles.debugText}>
-            Estado: {isAuthenticated === null ? 'Verificando...' : isAuthenticated ? 'Autenticado' : 'Não autenticado'}
-          </Text>
-        )}
       </View>
     );
   }
 
-  // Se não estiver autenticado, mostra mensagem ou null
   if (!isAuthenticated || !user) {
-    console.log('🚫 [HomeScreen] Renderizando null - não autenticado');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Redirecionando para login...</Text>
       </View>
     );
   }
-
-  console.log('✅ [HomeScreen] Renderizando tela para:', user.nome);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -262,17 +232,6 @@ export default function HomeScreen() {
           </Text>
         </View>
         
-        {/* Debug info (apenas desenvolvimento) */}
-        {__DEV__ && (
-          <View style={styles.debugSection}>
-            <Text style={styles.debugTitle}>🔧 Debug Info</Text>
-            <Text style={styles.debugText}>ID: {user.id}</Text>
-            <Text style={styles.debugText}>Email: {user.email}</Text>
-            <Text style={styles.debugText}>Nome: {user.nome}</Text>
-            <Text style={styles.debugText}>Tipo: {user.type}</Text>
-          </View>
-        )}
-        
         {/* Espaço no final */}
         <View style={styles.spacer} />
         
@@ -298,13 +257,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.gray,
     textAlign: 'center',
-  },
-  debugText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: Colors.gray,
-    textAlign: 'center',
-    opacity: 0.7,
   },
   scrollView: {
     flex: 1,
@@ -553,22 +505,6 @@ const styles = StyleSheet.create({
     color: Colors.gray,
     lineHeight: 22,
     fontSize: 15,
-  },
-  debugSection: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    padding: Spacing.md,
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-  },
-  debugTitle: {
-    ...Typography.bodySmall,
-    color: Colors.gray,
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: Spacing.sm,
-    fontSize: 12,
   },
   spacer: {
     height: Spacing.xxl,

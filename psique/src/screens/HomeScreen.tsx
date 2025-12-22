@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAuth } from '../contexts/AuthContexts'; // CORRIGIDO: AuthContext, não AuthContexts
+import { useAuth } from '../contexts/AuthContext'; // CORRIGIDO: AuthContext, não AuthContexts
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme/index';
 
 export default function HomeScreen() {
