@@ -11,8 +11,8 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAuth } from '../contexts/AuthContexts'; // CORRIGIDO: AuthContext, não AuthContexts
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme/index';
+import { useAuth } from '../src/contexts/AuthContexts'; // CORRIGIDO: AuthContext, não AuthContexts
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../src/theme/index';
 
 export default function HomeScreen() {
   const { isAuthenticated, user, loading, logout, checkAuth } = useAuth();
@@ -196,7 +196,7 @@ export default function HomeScreen() {
         {/* Preferências (se existirem) */}
         {user.gosto && Object.keys(user.gosto).length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎭 Suas preferências 12</Text>
+            <Text style={styles.sectionTitle}>🎭 Suas preferências</Text>
             
             <View style={styles.preferencesGrid}>
               {Object.entries(user.gosto).map(([key, value]) => (

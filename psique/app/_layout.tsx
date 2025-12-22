@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { ActivityIndicator, View } from 'react-native';
+import { AuthProvider } from '../src/contexts/AuthContexts';
 import { Colors } from '../src/theme';
 
 export default function RootLayout() {
@@ -14,14 +15,19 @@ export default function RootLayout() {
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.offWhite }}>
+      <View style={{ 
+        flex: 1, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: Colors.offWhite 
+      }}>
         <ActivityIndicator size="large" color={Colors.green} />
       </View>
     );
   }
 
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="dark" backgroundColor={Colors.offWhite} />
       <Stack
         screenOptions={{
@@ -48,17 +54,11 @@ export default function RootLayout() {
         <Stack.Screen 
           name="home" 
           options={{ 
-            title: 'rolê',
+            title: 'psique',
             headerBackVisible: false,
           }} 
         />
-        <Stack.Screen 
-          name="profile" 
-          options={{ 
-            title: 'meu perfil',
-          }} 
-        />
       </Stack>
-    </>
+    </AuthProvider>
   );
 }
