@@ -2,66 +2,16 @@ import { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   Image,
   ActivityIndicator,
   ScrollView,
-  SafeAreaView,
   Alert,
-  FlatList,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useAuth } from '../src/contexts/AuthContexts';
+import { useAuth } from '../src/contexts/AuthContexts'; // CORRIGIDO: AuthContext, não AuthContexts
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../src/theme/index';
-
-// Dados mockados de dates (você substituirá pela API real)
-const MOCK_DATES = [
-  {
-    id: '1',
-    title: 'Rolê na Praia',
-    description: 'Pôr do sol com música ao vivo',
-    date: 'SAB, 15 OUT',
-    time: '17:00',
-    location: 'Praia de Ipanema',
-    image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400',
-    attendees: 12,
-    isJoined: true,
-  },
-  {
-    id: '2',
-    title: 'Festa Indie',
-    description: 'Bandas locais e drinks especiais',
-    date: 'SEX, 21 OUT',
-    time: '21:00',
-    location: 'Lapa',
-    image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w-400',
-    attendees: 24,
-    isJoined: false,
-  },
-  {
-    id: '3',
-    title: 'Piquenique no Parque',
-    description: 'Comida, jogos e boa conversa',
-    date: 'DOM, 23 OUT',
-    time: '14:00',
-    location: 'Parque do Flamengo',
-    image: 'https://images.unsplash.com/photo-1523293915678-d126868e96f1?w=400',
-    attendees: 8,
-    isJoined: true,
-  },
-  {
-    id: '4',
-    title: 'Workshop de Fotografia',
-    description: 'Aprenda com profissionais',
-    date: 'QUI, 27 OUT',
-    time: '10:00',
-    location: 'Botafogo',
-    image: 'https://images.unsplash.com/photo-1554048612-b6a482bc67e5?w=400',
-    attendees: 15,
-    isJoined: false,
-  },
-];
 
 export default function HomeScreen() {
   const { isAuthenticated, user, loading, logout } = useAuth();
@@ -70,27 +20,52 @@ export default function HomeScreen() {
 
   // Efeito para verificar autenticação
   useEffect(() => {
+    console.log('🔍 [HomeScreen] useEffect - Verificando autenticação...');
+    console.log('🔍 [HomeScreen] Estado inicial:', {
+      isAuthenticated,
+      loading,
+      user: user ? `Sim (${user.nome})` : 'Não',
+    });
+
     const verifyAuth = async () => {
       try {
         setIsChecking(true);
-        // Aguarda um momento para garantir que o estado seja verificado
-        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('🔄 [HomeScreen] Chamando checkAuth...');
+        await checkAuth();
       } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
+        console.error('❌ [HomeScreen] Erro ao verificar autenticação:', error);
       } finally {
         setIsChecking(false);
       }
     };
-
     verifyAuth();
   }, []);
 
-  // Efeito para redirecionar se não autenticado
+  // Efeito de segurança: Se deslogou, chuta para o login
   useEffect(() => {
+    console.log('🔄 [HomeScreen] Monitorando autenticação:', {
+      isAuthenticated,
+      loading,
+      isChecking,
+    });
+
     if (!loading && !isChecking && isAuthenticated === false) {
+      console.log('🚫 [HomeScreen] Usuário não autenticado, redirecionando...');
       router.replace('/');
     }
   }, [isAuthenticated, loading, isChecking]);
+
+  // === LÓGICA DE LOGOUT CORRIGIDA ===
+  const performLogout = async () => {
+    console.log('🚪 Executando Logout...');
+    try {
+      await logout(); // Limpa o contexto/storage
+      console.log('✅ Logout concluído. Redirecionando...');
+      router.replace('/'); // Força a ida para a raiz
+    } catch (error) {
+      console.error('❌ Erro ao sair:', error);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -102,12 +77,14 @@ export default function HomeScreen() {
           text: 'Sair', 
           style: 'destructive',
           onPress: async () => {
+            console.log('🔄 [HomeScreen] Iniciando logout...');
             await logout();
+            console.log('✅ [HomeScreen] Logout concluído');
             router.replace('/');
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleJoinDate = (dateId: string) => {
@@ -190,33 +167,43 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
-  // Loading state
   if (loading || isChecking) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando seus rolês...</Text>
+        <Text style={styles.loadingText}>Carregando sua vibe...</Text>
+        {__DEV__ && (
+          <Text style={styles.debugText}>
+            Estado: {isAuthenticated === null ? 'Verificando...' : isAuthenticated ? 'Autenticado' : 'Não autenticado'}
+          </Text>
+        )}
       </View>
     );
   }
 
-  // Se não estiver autenticado
+  // Se não estiver autenticado, mostra mensagem ou null
   if (!isAuthenticated || !user) {
+    console.log('🚫 [HomeScreen] Renderizando null - não autenticado');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Redirecionando para login...</Text>
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Olá, {user.nome?.split(' ')[0] || 'amigo'} 👋</Text>
-          <Text style={styles.subGreeting}>Pronto pra curtir?</Text>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.logo}>psique</Text>
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <Text style={styles.logoutText}>sair</Text>
+          </TouchableOpacity>
         </View>
         
         <TouchableOpacity 
@@ -307,17 +294,32 @@ export default function HomeScreen() {
           <View style={styles.createButton}>
             <Text style={styles.createButtonIcon}>+</Text>
           </View>
-          <Text style={styles.navLabel}>Criar</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.navButton}
-          onPress={handleLogout}
-        >
-          <Text style={styles.navIcon}>👋</Text>
-          <Text style={styles.navLabel}>Sair</Text>
-        </TouchableOpacity>
-      </View>
+        </View>
+        
+        {/* Mensagem de boas-vindas */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeTitle}>Bem-vindo de volta! 🎉</Text>
+          <Text style={styles.welcomeText}>
+            Sua vibe está carregada. Hora de encontrar rolês incríveis{'\n'}
+            e conexões reais. A vida offline te espera!
+          </Text>
+        </View>
+        
+        {/* Debug info (apenas desenvolvimento) */}
+        {__DEV__ && (
+          <View style={styles.debugSection}>
+            <Text style={styles.debugTitle}>🔧 Debug Info</Text>
+            <Text style={styles.debugText}>ID: {user.id}</Text>
+            <Text style={styles.debugText}>Email: {user.email}</Text>
+            <Text style={styles.debugText}>Nome: {user.nome}</Text>
+            <Text style={styles.debugText}>Tipo: {user.type}</Text>
+          </View>
+        )}
+        
+        {/* Espaço no final */}
+        <View style={styles.spacer} />
+        
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -340,141 +342,99 @@ const styles = StyleSheet.create({
     color: Colors.gray,
     textAlign: 'center',
   },
+  debugText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: Colors.gray,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  scrollView: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.lightGray,
     backgroundColor: Colors.offWhite,
   },
-  greeting: {
-    fontSize: 24,
-    fontFamily: 'Inter-Bold',
+  logo: {
+    ...Typography.h2,
     color: Colors.black,
-    marginBottom: 2,
+    letterSpacing: -1,
+    fontFamily: 'Montserrat-Bold',
   },
-  subGreeting: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: Colors.gray,
-  },
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 22,
-  },
-  profilePlaceholder: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 22,
-    backgroundColor: Colors.green,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileInitial: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-    color: Colors.black,
-  },
-  tabsContainer: {
-    backgroundColor: Colors.offWhite,
-    paddingVertical: Spacing.sm,
-  },
-  tabsContent: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-  },
-  tabButton: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.white,
+  logoutButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
     borderWidth: 1,
-    borderColor: Colors.lightGray,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
   },
-  tabButtonActive: {
-    backgroundColor: Colors.green,
-    borderColor: Colors.green,
-  },
-  tabIcon: {
-    fontSize: 16,
-  },
-  tabLabel: {
-    fontSize: 14,
+  logoutText: {
+    ...Typography.caption,
+    color: '#FF6B6B',
     fontFamily: 'Inter-SemiBold',
-    color: Colors.gray,
-  },
-  tabLabelActive: {
-    color: Colors.black,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-    color: Colors.black,
-  },
-  filterButton: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.green,
-    textDecorationLine: 'underline',
   },
-  datesList: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xxl,
-  },
-  dateCard: {
+  profileCard: {
     backgroundColor: Colors.white,
+    margin: Spacing.lg,
+    padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.lightGray,
     ...Shadows.subtle,
   },
-  dateImage: {
-    width: '100%',
-    height: 180,
-  },
-  dateContent: {
-    padding: Spacing.lg,
-  },
-  dateHeader: {
+  profileHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  dateBadge: {
-    backgroundColor: Colors.black,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.round,
+    marginRight: Spacing.lg,
+    backgroundColor: Colors.lightGray,
   },
-  dateBadgeText: {
-    color: Colors.white,
-    fontSize: 12,
-    fontFamily: 'Inter-Bold',
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.round,
+    backgroundColor: Colors.green,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.lg,
   },
-  joinedBadge: {
+  avatarText: {
+    ...Typography.h1,
+    color: Colors.black,
+    fontSize: 32,
+    fontFamily: 'Montserrat-Bold',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  userName: {
+    ...Typography.h3,
+    color: Colors.black,
+    marginBottom: Spacing.xs,
+    fontFamily: 'Inter-SemiBold',
+  },
+  userEmail: {
+    ...Typography.body,
+    color: Colors.gray,
+    marginBottom: Spacing.sm,
+    fontSize: 14,
+  },
+  userType: {
+    alignSelf: 'flex-start',
     backgroundColor: 'rgba(95, 240, 169, 0.1)',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -482,108 +442,178 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.green,
   },
-  joinedBadgeText: {
+  userTypeText: {
+    ...Typography.caption,
     color: Colors.green,
-    fontSize: 12,
     fontFamily: 'Inter-SemiBold',
+    textTransform: 'uppercase',
+    fontSize: 12,
   },
-  dateTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter-Bold',
-    color: Colors.black,
+  userIdContainer: {
+    backgroundColor: 'rgba(43, 43, 43, 0.05)',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+  },
+  userIdLabel: {
+    ...Typography.caption,
+    color: Colors.gray,
     marginBottom: Spacing.xs,
-  },
-  dateDescription: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: Colors.gray,
-    marginBottom: Spacing.md,
-    lineHeight: 20,
-  },
-  dateInfo: {
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  infoIcon: {
-    fontSize: 14,
-    width: 20,
-  },
-  infoText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: Colors.black,
-  },
-  joinButton: {
-    backgroundColor: Colors.green,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-  },
-  joinButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.black,
-  },
-  joinedButton: {
-    backgroundColor: Colors.lightGray,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-  },
-  joinedButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.gray,
-  },
-  listFooter: {
-    height: Spacing.xxl,
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    paddingVertical: Spacing.sm,
-    paddingBottom: Spacing.lg,
-  },
-  navButton: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  navIcon: {
-    fontSize: 22,
-    marginBottom: 4,
-  },
-  navLabel: {
     fontSize: 12,
-    fontFamily: 'Inter-Medium',
-    color: Colors.gray,
   },
-  createButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.green,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -20,
-    marginBottom: 4,
-    ...Shadows.medium,
-  },
-  createButtonIcon: {
-    fontSize: 28,
-    fontFamily: 'Inter-Bold',
+  userId: {
+    ...Typography.bodySmall,
     color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 11,
+  },
+  section: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  sectionTitle: {
+    ...Typography.h3,
+    color: Colors.black,
+    marginBottom: Spacing.md,
+    fontFamily: 'Inter-SemiBold',
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  infoCard: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    ...Shadows.subtle,
+  },
+  infoLabel: {
+    ...Typography.caption,
+    color: Colors.gray,
+    marginBottom: Spacing.xs,
+    fontSize: 12,
+  },
+  infoValue: {
+    ...Typography.bodySmall,
+    color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(95, 240, 169, 0.1)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.green,
+  },
+  statusText: {
+    ...Typography.caption,
+    color: Colors.green,
+    fontSize: 10,
+    fontFamily: 'Inter-SemiBold',
+  },
+  preferencesGrid: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    overflow: 'hidden',
+  },
+  preferenceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.lightGray,
+  },
+  preferenceKey: {
+    ...Typography.bodySmall,
+    color: Colors.gray,
+    flex: 1,
+    fontSize: 14,
+  },
+  preferenceValue: {
+    ...Typography.bodySmall,
+    color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+    flex: 2,
+    textAlign: 'right',
+    fontSize: 14,
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  actionButton: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    alignItems: 'center',
+    ...Shadows.subtle,
+  },
+  actionEmoji: {
+    fontSize: 24,
+    marginBottom: Spacing.sm,
+  },
+  actionText: {
+    ...Typography.bodySmall,
+    color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  welcomeSection: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xl,
+    padding: Spacing.lg,
+    backgroundColor: 'rgba(95, 240, 169, 0.1)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(95, 240, 169, 0.2)',
+  },
+  welcomeTitle: {
+    ...Typography.h3,
+    color: Colors.black,
+    marginBottom: Spacing.sm,
+    fontFamily: 'Inter-SemiBold',
+  },
+  welcomeText: {
+    ...Typography.body,
+    color: Colors.gray,
+    lineHeight: 22,
+    fontSize: 15,
+  },
+  debugSection: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    padding: Spacing.md,
+    backgroundColor: 'rgba(43, 43, 43, 0.05)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+  },
+  debugTitle: {
+    ...Typography.bodySmall,
+    color: Colors.gray,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: Spacing.sm,
+    fontSize: 12,
+  },
+  spacer: {
+    height: Spacing.xxl,
   },
 });
