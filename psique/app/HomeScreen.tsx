@@ -7,13 +7,13 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  Platform // <--- Importante para detectar se é Web ou Celular
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors } from '../src/theme/index';
 
-// Importando os estilos separados
 import { styles } from './HomeScreen.styles';
 
 export default function HomeScreen() {
@@ -23,7 +23,6 @@ export default function HomeScreen() {
   // Efeito para verificar autenticação
   useEffect(() => {
     console.log('🔍 [HomeScreen] Verificando autenticação...');
-    
     const verifyAuth = async () => {
       try {
         setIsChecking(true);
@@ -34,34 +33,53 @@ export default function HomeScreen() {
         setIsChecking(false);
       }
     };
-
     verifyAuth();
   }, []);
 
-  // Efeito para redirecionar se não autenticado
+  // Efeito de segurança: Se deslogou, chuta para o login
   useEffect(() => {
+    // Se terminou de carregar e não está autenticado
     if (!loading && !isChecking && isAuthenticated === false) {
-      console.log('🚫 [HomeScreen] Não autenticado -> Redirecionando para Login');
+      console.log('👋 [HomeScreen] Deslogado -> Indo para Login');
       router.replace('/');
     }
   }, [isAuthenticated, loading, isChecking]);
 
+  // === LÓGICA DE LOGOUT CORRIGIDA ===
+  const performLogout = async () => {
+    console.log('🚪 Executando Logout...');
+    try {
+      await logout(); // Limpa o contexto/storage
+      console.log('✅ Logout concluído. Redirecionando...');
+      router.replace('/'); // Força a ida para a raiz
+    } catch (error) {
+      console.error('❌ Erro ao sair:', error);
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert(
-      'Sair',
-      'Tem certeza que deseja sair?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Sair', 
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/');
+    // Se for WEB, usa o confirm do navegador (mais confiável no localhost)
+    if (Platform.OS === 'web') {
+      const confirm = window.confirm('Tem certeza que deseja desconectar?');
+      if (confirm) {
+        performLogout();
+      }
+    } 
+    // Se for CELULAR (iOS/Android), usa o Alert nativo bonitinho
+    else {
+      Alert.alert(
+        'Sair',
+        'Tem certeza que deseja desconectar?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { 
+            text: 'Sair', 
+            style: 'destructive',
+            onPress: performLogout
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -86,7 +104,8 @@ export default function HomeScreen() {
     );
   }
 
-  if (!isAuthenticated || !user) {
+  // Fallback de segurança se o user for null
+  if (!user) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
@@ -101,6 +120,7 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.logo}>psique</Text>
+          
           <TouchableOpacity 
             style={styles.logoutButton}
             onPress={handleLogout}

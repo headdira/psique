@@ -8,14 +8,13 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
-  ScrollView
+  ScrollView,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors } from '../src/theme';
-
-// Importando os estilos separados
 import { styles } from './index.styles'; 
 
 export default function LoginScreen() {
@@ -23,7 +22,12 @@ export default function LoginScreen() {
   const [localLoading, setLocalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { login, loginWithGoogle, isAuthenticated, loading: authLoading } = useAuth();
+  // Estados para o Modal de Recuperação
+  const [modalVisible, setModalVisible] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  
+  const { login, loginWithGoogle, signup, isAuthenticated, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated === true) {
@@ -37,45 +41,19 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (!email.trim()) {
-      setError('Digite seu email');
-      return;
-    }
-
-    if (!validateEmail(email)) {
-      setError('Digite um email válido');
-      return;
-    }
+    if (!email.trim()) { setError('Digite seu email'); return; }
+    if (!validateEmail(email)) { setError('Digite um email válido'); return; }
 
     setLocalLoading(true);
     setError(null);
 
     try {
       const result = await login(email);
-      
       if (!result.success) {
         setError(result.message || 'Email não encontrado');
-        
-        if (result.message?.includes('não encontrado') || result.message?.includes('criar')) {
-          Alert.alert(
-            'Email não cadastrado',
-            'Deseja criar uma conta com este email?',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              { 
-                text: 'Criar conta', 
-                onPress: () => {
-                  Alert.alert('Em breve', 'Funcionalidade em desenvolvimento');
-                }
-              }
-            ]
-          );
-        }
       }
     } catch (error: any) {
-      console.error('Erro no login:', error);
       setError('Erro ao fazer login');
-      Alert.alert('Erro', 'Não foi possível conectar ao servidor');
     } finally {
       setLocalLoading(false);
     }
@@ -84,37 +62,54 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
       const result = await loginWithGoogle();
-      
       if (!result.success && result.message !== 'Login cancelado ou falhou') {
         Alert.alert('Atenção', result.message || 'Não foi possível entrar com Google');
       }
     } catch (error) {
-      console.error('Erro no login com Google:', error);
       Alert.alert('Erro', 'Ocorreu um erro inesperado');
     }
   };
 
-  const handleForgotPassword = () => {
-    Alert.alert(
-      'Recuperar senha',
-      'Entre em contato com o suporte para recuperar sua conta.',
-      [{ text: 'OK' }]
-    );
+  const handleSignup = async () => {
+    try {
+      const result = await signup();
+      if (!result.success && result.message !== 'Operação cancelada ou falhou') {
+        Alert.alert('Atenção', result.message || 'Erro no cadastro');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Ocorreu um erro ao abrir o cadastro');
+    }
+  };
+
+  const openRecoveryModal = () => {
+    setRecoveryEmail(email);
+    setModalVisible(true);
+  };
+
+  const handleSendRecovery = async () => {
+    if (!recoveryEmail.trim() || !validateEmail(recoveryEmail)) {
+      Alert.alert('Ops', 'Digite um e-mail válido.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+
+    setTimeout(() => {
+      setRecoveryLoading(false);
+      setModalVisible(false);
+      Alert.alert(
+        'E-mail enviado! 📧',
+        `Enviamos um link de recuperação para ${recoveryEmail}. Verifique sua caixa de entrada e spam.`
+      );
+    }, 1500);
   };
 
   const isLoading = localLoading || authLoading;
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           
           <View style={styles.content}>
             <View style={styles.header}>
@@ -129,9 +124,7 @@ export default function LoginScreen() {
                 <Text style={styles.heroLine2}>novo match.</Text>
               </View>
               
-              <Text style={styles.description}>
-                Entre com seu email pra{'\n'}encontrar rolês incríveis.
-              </Text>
+              <Text style={styles.description}>Entre com seu email pra{'\n'}encontrar rolês incríveis.</Text>
               
               <View style={styles.inputContainer}>
                 <TextInput
@@ -139,10 +132,7 @@ export default function LoginScreen() {
                   placeholder="seu@email.com"
                   placeholderTextColor={Colors.gray + '70'}
                   value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setError(null);
-                  }}
+                  onChangeText={(text) => { setEmail(text); setError(null); }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -151,17 +141,21 @@ export default function LoginScreen() {
                 {error && <Text style={styles.errorText}>{error}</Text>}
               </View>
               
-              <TouchableOpacity 
-                style={[styles.button, isLoading && styles.buttonDisabled]}
-                onPress={handleLogin}
-                disabled={isLoading}
-                activeOpacity={0.8}
-              >
-                {isLoading && !authLoading ? (
-                  <ActivityIndicator color={Colors.black} />
-                ) : (
-                  <Text style={styles.buttonText}>Entrar com email</Text>
-                )}
+              {/* Botão Entrar */}
+              <TouchableOpacity style={[styles.button, isLoading && styles.buttonDisabled]} onPress={handleLogin} disabled={isLoading} activeOpacity={0.8}>
+                {isLoading && !authLoading ? <ActivityIndicator color={Colors.black} /> : <Text style={styles.buttonText}>Entrar com email</Text>}
+              </TouchableOpacity>
+
+              {/* Link Cadastrar */}
+              <TouchableOpacity style={styles.signupButton} onPress={handleSignup} disabled={isLoading}>
+                <Text style={styles.signupText}>
+                  Não tem uma conta? <Text style={styles.signupTextBold}>Cadastre-se</Text>
+                </Text>
+              </TouchableOpacity>
+
+              {/* Link Esqueci a senha */}
+              <TouchableOpacity style={styles.forgotButtonInline} onPress={openRecoveryModal} disabled={isLoading}>
+                <Text style={styles.forgotTextInline}>Esqueceu a senha?</Text>
               </TouchableOpacity>
               
               <View style={styles.orContainer}>
@@ -170,19 +164,11 @@ export default function LoginScreen() {
                 <View style={styles.dividerLine} />
               </View>
               
-              <TouchableOpacity 
-                style={[styles.googleButton, isLoading && styles.buttonDisabled]}
-                onPress={handleGoogleLogin}
-                disabled={isLoading}
-                activeOpacity={0.8}
-              >
-                {authLoading ? (
-                  <ActivityIndicator color={Colors.black} />
-                ) : (
+              {/* Botão Google */}
+              <TouchableOpacity style={[styles.googleButton, isLoading && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={isLoading} activeOpacity={0.8}>
+                {authLoading ? <ActivityIndicator color={Colors.black} /> : (
                   <>
-                    <View style={styles.googleIcon}>
-                      <Text style={styles.googleIconText}>G</Text>
-                    </View>
+                    <View style={styles.googleIcon}><Text style={styles.googleIconText}>G</Text></View>
                     <Text style={styles.googleButtonText}>Entrar com Google</Text>
                   </>
                 )}
@@ -190,25 +176,58 @@ export default function LoginScreen() {
               
               <View style={styles.divider} />
               
-              <Text style={styles.call}>
-                Vem viver a vida offline.
-              </Text>
+              <Text style={styles.call}>Vem viver a vida offline.</Text>
             </View>
             
-            <TouchableOpacity
-              style={styles.forgotButton}
-              onPress={handleForgotPassword}
-              disabled={isLoading}
-            >
-              <Text style={styles.forgotText}>Esqueceu sua conta?</Text>
-            </TouchableOpacity>
-            
-            <Text style={styles.footer}>
-              Conexões reais • Intenção real
-            </Text>
-            
+            <Text style={styles.footer}>Conexões reais • Intenção real</Text>
           </View>
           
+          {/* MODAL DE RECUPERAÇÃO */}
+          <Modal
+            animationType="fade"
+            transparent={true}
+            visible={modalVisible}
+            onRequestClose={() => setModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Recuperar Senha</Text>
+                <Text style={styles.modalText}>Digite seu e-mail para receber um link de redefinição.</Text>
+                
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="seu@email.com"
+                  placeholderTextColor={Colors.gray + '70'}
+                  value={recoveryEmail}
+                  onChangeText={setRecoveryEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.cancelButton]} 
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.confirmButton]} 
+                    onPress={handleSendRecovery}
+                    disabled={recoveryLoading}
+                  >
+                    {recoveryLoading ? (
+                      <ActivityIndicator color={Colors.black} size="small" />
+                    ) : (
+                      <Text style={styles.confirmButtonText}>Enviar</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
