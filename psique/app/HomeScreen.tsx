@@ -9,34 +9,76 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAuth } from '../src/contexts/AuthContexts'; // CORRIGIDO: AuthContext, não AuthContexts
+import { useAuth } from '../src/contexts/AuthContexts';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../src/theme/index';
 
+// Dados mockados de dates (você substituirá pela API real)
+const MOCK_DATES = [
+  {
+    id: '1',
+    title: 'Rolê na Praia',
+    description: 'Pôr do sol com música ao vivo',
+    date: 'SAB, 15 OUT',
+    time: '17:00',
+    location: 'Praia de Ipanema',
+    image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400',
+    attendees: 12,
+    isJoined: true,
+  },
+  {
+    id: '2',
+    title: 'Festa Indie',
+    description: 'Bandas locais e drinks especiais',
+    date: 'SEX, 21 OUT',
+    time: '21:00',
+    location: 'Lapa',
+    image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w-400',
+    attendees: 24,
+    isJoined: false,
+  },
+  {
+    id: '3',
+    title: 'Piquenique no Parque',
+    description: 'Comida, jogos e boa conversa',
+    date: 'DOM, 23 OUT',
+    time: '14:00',
+    location: 'Parque do Flamengo',
+    image: 'https://images.unsplash.com/photo-1523293915678-d126868e96f1?w=400',
+    attendees: 8,
+    isJoined: true,
+  },
+  {
+    id: '4',
+    title: 'Workshop de Fotografia',
+    description: 'Aprenda com profissionais',
+    date: 'QUI, 27 OUT',
+    time: '10:00',
+    location: 'Botafogo',
+    image: 'https://images.unsplash.com/photo-1554048612-b6a482bc67e5?w=400',
+    attendees: 15,
+    isJoined: false,
+  },
+];
+
 export default function HomeScreen() {
-  const { isAuthenticated, user, loading, logout, checkAuth } = useAuth();
+  const { isAuthenticated, user, loading, logout } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
+  const [activeTab, setActiveTab] = useState('discover');
 
   // Efeito para verificar autenticação
   useEffect(() => {
-    console.log('🔍 [HomeScreen] useEffect - Verificando autenticação...');
-    console.log('🔍 [HomeScreen] Estado inicial:', {
-      isAuthenticated,
-      loading,
-      user: user ? `Sim (${user.nome})` : 'Não',
-    });
-
     const verifyAuth = async () => {
       try {
         setIsChecking(true);
-        console.log('🔄 [HomeScreen] Chamando checkAuth...');
-        await checkAuth();
+        // Aguarda um momento para garantir que o estado seja verificado
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
-        console.error('❌ [HomeScreen] Erro ao verificar autenticação:', error);
+        console.error('Erro ao verificar autenticação:', error);
       } finally {
         setIsChecking(false);
-        console.log('✅ [HomeScreen] Verificação concluída');
       }
     };
 
@@ -45,19 +87,8 @@ export default function HomeScreen() {
 
   // Efeito para redirecionar se não autenticado
   useEffect(() => {
-    console.log('🔄 [HomeScreen] Monitorando autenticação:', {
-      isAuthenticated,
-      loading,
-      isChecking,
-    });
-
     if (!loading && !isChecking && isAuthenticated === false) {
-      console.log('🚫 [HomeScreen] Usuário não autenticado, redirecionando...');
       router.replace('/');
-    }
-
-    if (isAuthenticated === true) {
-      console.log('✅ [HomeScreen] Usuário autenticado!', user?.nome);
     }
   }, [isAuthenticated, loading, isChecking]);
 
@@ -71,9 +102,7 @@ export default function HomeScreen() {
           text: 'Sair', 
           style: 'destructive',
           onPress: async () => {
-            console.log('🔄 [HomeScreen] Iniciando logout...');
             await logout();
-            console.log('✅ [HomeScreen] Logout concluído');
             router.replace('/');
           }
         }
@@ -81,37 +110,98 @@ export default function HomeScreen() {
     );
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
+  const handleJoinDate = (dateId: string) => {
+    Alert.alert(
+      'Confirmar presença',
+      'Você quer confirmar sua presença neste rolê?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Confirmar', 
+          onPress: () => {
+            // Implementar lógica de join
+            Alert.alert('Sucesso!', 'Presença confirmada!');
+          }
+        }
+      ]
+    );
   };
+
+  const renderDateItem = ({ item }: { item: typeof MOCK_DATES[0] }) => (
+    <TouchableOpacity 
+      style={styles.dateCard}
+      onPress={() => Alert.alert(item.title, 'Detalhes do rolê em desenvolvimento')}
+      activeOpacity={0.9}
+    >
+      <Image 
+        source={{ uri: item.image }} 
+        style={styles.dateImage}
+        resizeMode="cover"
+      />
+      
+      <View style={styles.dateContent}>
+        <View style={styles.dateHeader}>
+          <View style={styles.dateBadge}>
+            <Text style={styles.dateBadgeText}>{item.date}</Text>
+          </View>
+          {item.isJoined && (
+            <View style={styles.joinedBadge}>
+              <Text style={styles.joinedBadgeText}>✅ Confirmado</Text>
+            </View>
+          )}
+        </View>
+        
+        <Text style={styles.dateTitle}>{item.title}</Text>
+        <Text style={styles.dateDescription}>{item.description}</Text>
+        
+        <View style={styles.dateInfo}>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoIcon}>📍</Text>
+            <Text style={styles.infoText}>{item.location}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoIcon}>🕒</Text>
+            <Text style={styles.infoText}>{item.time}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoIcon}>👥</Text>
+            <Text style={styles.infoText}>{item.attendees} pessoas</Text>
+          </View>
+        </View>
+        
+        {!item.isJoined ? (
+          <TouchableOpacity 
+            style={styles.joinButton}
+            onPress={() => handleJoinDate(item.id)}
+          >
+            <Text style={styles.joinButtonText}>Entrar na vibe</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={styles.joinedButton}
+            onPress={() => Alert.alert('Detalhes', 'Você já confirmou presença!')}
+          >
+            <Text style={styles.joinedButtonText}>Ver detalhes</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
 
   // Loading state
   if (loading || isChecking) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando sua vibe...</Text>
-        {__DEV__ && (
-          <Text style={styles.debugText}>
-            Estado: {isAuthenticated === null ? 'Verificando...' : isAuthenticated ? 'Autenticado' : 'Não autenticado'}
-          </Text>
-        )}
+        <Text style={styles.loadingText}>Carregando seus rolês...</Text>
       </View>
     );
   }
 
-  // Se não estiver autenticado, mostra mensagem ou null
+  // Se não estiver autenticado
   if (!isAuthenticated || !user) {
-    console.log('🚫 [HomeScreen] Renderizando null - não autenticado');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
@@ -120,163 +210,114 @@ export default function HomeScreen() {
     );
   }
 
-  console.log('✅ [HomeScreen] Renderizando tela para:', user.nome);
-
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.logo}>psique</Text>
-          <TouchableOpacity 
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <Text style={styles.logoutText}>sair</Text>
-          </TouchableOpacity>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>Olá, {user.nome?.split(' ')[0] || 'amigo'} 👋</Text>
+          <Text style={styles.subGreeting}>Pronto pra curtir?</Text>
         </View>
         
-        {/* Perfil do usuário */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            {user.foto ? (
-              <Image 
-                source={{ uri: user.foto }} 
-                style={styles.avatar}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {user.nome?.charAt(0).toUpperCase() || 'U'}
-                </Text>
-              </View>
-            )}
-            
-            <View style={styles.profileInfo}>
-              <Text style={styles.userName}>{user.nome || 'Usuário'}</Text>
-              <Text style={styles.userEmail}>{user.email}</Text>
-              <View style={styles.userType}>
-                <Text style={styles.userTypeText}>{user.type || 'free'}</Text>
-              </View>
+        <TouchableOpacity 
+          style={styles.profileButton}
+          onPress={() => router.push('/profile')}
+        >
+          {user.foto ? (
+            <Image 
+              source={{ uri: user.foto }} 
+              style={styles.profileImage}
+            />
+          ) : (
+            <View style={styles.profilePlaceholder}>
+              <Text style={styles.profileInitial}>
+                {user.nome?.charAt(0).toUpperCase() || 'U'}
+              </Text>
             </View>
-          </View>
-          
-          <View style={styles.userIdContainer}>
-            <Text style={styles.userIdLabel}>ID da conta:</Text>
-            <Text style={styles.userId}>{user.id}</Text>
-          </View>
-        </View>
-        
-        {/* Informações da conta */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 Sua conta</Text>
-          
-          <View style={styles.infoGrid}>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Criada em</Text>
-              <Text style={styles.infoValue}>{formatDate(user.created_at)}</Text>
-            </View>
-            
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Atualizada em</Text>
-              <Text style={styles.infoValue}>{formatDate(user.updated_at)}</Text>
-            </View>
-            
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Status</Text>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>Ativa</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-        
-        {/* Preferências (se existirem) */}
-        {user.gosto && Object.keys(user.gosto).length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎭 Suas preferências</Text>
-            
-            <View style={styles.preferencesGrid}>
-              {Object.entries(user.gosto).map(([key, value]) => (
-                <View key={key} style={styles.preferenceItem}>
-                  <Text style={styles.preferenceKey}>{key}:</Text>
-                  <Text style={styles.preferenceValue}>
-                    {typeof value === 'object' 
-                      ? JSON.stringify(value) 
-                      : String(value)
-                    }
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-        
-        {/* Ações */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚡ Ações rápidas</Text>
-          
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/profile')}
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Tabs de navegação */}
+      <View style={styles.tabsContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContent}
+        >
+          {[
+            { id: 'discover', label: 'Descobrir', icon: '🔍' },
+            { id: 'joined', label: 'Meus Rolês', icon: '🎉' },
+            { id: 'upcoming', label: 'Próximos', icon: '📅' },
+            { id: 'saved', label: 'Salvos', icon: '❤️' },
+            { id: 'history', label: 'Histórico', icon: '📝' },
+          ].map((tab) => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[
+                styles.tabButton,
+                activeTab === tab.id && styles.tabButtonActive
+              ]}
+              onPress={() => setActiveTab(tab.id)}
             >
-              <Text style={styles.actionEmoji}>👤</Text>
-              <Text style={styles.actionText}>Perfil</Text>
+              <Text style={styles.tabIcon}>{tab.icon}</Text>
+              <Text style={[
+                styles.tabLabel,
+                activeTab === tab.id && styles.tabLabelActive
+              ]}>
+                {tab.label}
+              </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
-            >
-              <Text style={styles.actionEmoji}>❤️</Text>
-              <Text style={styles.actionText}>Matches</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
-            >
-              <Text style={styles.actionEmoji}>🔍</Text>
-              <Text style={styles.actionText}>Descobrir</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
-            >
-              <Text style={styles.actionEmoji}>⚙️</Text>
-              <Text style={styles.actionText}>Configurar</Text>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Feed de Dates */}
+      <FlatList
+        data={MOCK_DATES}
+        renderItem={renderDateItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.datesList}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Rolês perto de você</Text>
+            <TouchableOpacity onPress={() => Alert.alert('Filtros', 'Funcionalidade em desenvolvimento')}>
+              <Text style={styles.filterButton}>Filtrar</Text>
             </TouchableOpacity>
           </View>
-        </View>
-        
-        {/* Mensagem de boas-vindas */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>Bem-vindo de volta! 🎉</Text>
-          <Text style={styles.welcomeText}>
-            Sua vibe está carregada. Hora de encontrar rolês incríveis{'\n'}
-            e conexões reais. A vida offline te espera!
-          </Text>
-        </View>
-        
-        {/* Debug info (apenas desenvolvimento) */}
-        {__DEV__ && (
-          <View style={styles.debugSection}>
-            <Text style={styles.debugTitle}>🔧 Debug Info</Text>
-            <Text style={styles.debugText}>ID: {user.id}</Text>
-            <Text style={styles.debugText}>Email: {user.email}</Text>
-            <Text style={styles.debugText}>Nome: {user.nome}</Text>
-            <Text style={styles.debugText}>Tipo: {user.type}</Text>
+        }
+        ListFooterComponent={<View style={styles.listFooter} />}
+      />
+
+      {/* Menu de Navegação Fixo */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={styles.navButton}
+          onPress={() => Alert.alert('Mensagens', 'Funcionalidade em desenvolvimento')}
+        >
+          <Text style={styles.navIcon}>💬</Text>
+          <Text style={styles.navLabel}>Mensagens</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navButton}
+          onPress={() => Alert.alert('Criar', 'Funcionalidade em desenvolvimento')}
+        >
+          <View style={styles.createButton}>
+            <Text style={styles.createButtonIcon}>+</Text>
           </View>
-        )}
-        
-        {/* Espaço no final */}
-        <View style={styles.spacer} />
-        
-      </ScrollView>
+          <Text style={styles.navLabel}>Criar</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navButton}
+          onPress={handleLogout}
+        >
+          <Text style={styles.navIcon}>👋</Text>
+          <Text style={styles.navLabel}>Sair</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -299,99 +340,141 @@ const styles = StyleSheet.create({
     color: Colors.gray,
     textAlign: 'center',
   },
-  debugText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: Colors.gray,
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-  scrollView: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
     backgroundColor: Colors.offWhite,
   },
-  logo: {
-    ...Typography.h2,
+  greeting: {
+    fontSize: 24,
+    fontFamily: 'Inter-Bold',
     color: Colors.black,
-    letterSpacing: -1,
-    fontFamily: 'Montserrat-Bold',
+    marginBottom: 2,
   },
-  logoutButton: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
-  },
-  logoutText: {
-    ...Typography.caption,
-    color: '#FF6B6B',
-    fontFamily: 'Inter-SemiBold',
+  subGreeting: {
     fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: Colors.gray,
   },
-  profileCard: {
-    backgroundColor: Colors.white,
-    margin: Spacing.lg,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    ...Shadows.subtle,
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
   },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.round,
-    marginRight: Spacing.lg,
-    backgroundColor: Colors.lightGray,
-  },
-  avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.round,
+  profilePlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
     backgroundColor: Colors.green,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.lg,
   },
-  avatarText: {
-    ...Typography.h1,
+  profileInitial: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
     color: Colors.black,
-    fontSize: 32,
-    fontFamily: 'Montserrat-Bold',
   },
-  profileInfo: {
-    flex: 1,
+  tabsContainer: {
+    backgroundColor: Colors.offWhite,
+    paddingVertical: Spacing.sm,
   },
-  userName: {
-    ...Typography.h3,
-    color: Colors.black,
-    marginBottom: Spacing.xs,
-    fontFamily: 'Inter-SemiBold',
+  tabsContent: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
   },
-  userEmail: {
-    ...Typography.body,
-    color: Colors.gray,
-    marginBottom: Spacing.sm,
+  tabButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tabButtonActive: {
+    backgroundColor: Colors.green,
+    borderColor: Colors.green,
+  },
+  tabIcon: {
+    fontSize: 16,
+  },
+  tabLabel: {
     fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.gray,
   },
-  userType: {
-    alignSelf: 'flex-start',
+  tabLabelActive: {
+    color: Colors.black,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+    color: Colors.black,
+  },
+  filterButton: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.green,
+    textDecorationLine: 'underline',
+  },
+  datesList: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xxl,
+  },
+  dateCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    ...Shadows.subtle,
+  },
+  dateImage: {
+    width: '100%',
+    height: 180,
+  },
+  dateContent: {
+    padding: Spacing.lg,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  dateBadge: {
+    backgroundColor: Colors.black,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  dateBadgeText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontFamily: 'Inter-Bold',
+  },
+  joinedBadge: {
     backgroundColor: 'rgba(95, 240, 169, 0.1)',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -399,178 +482,108 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.green,
   },
-  userTypeText: {
-    ...Typography.caption,
+  joinedBadgeText: {
     color: Colors.green,
-    fontFamily: 'Inter-SemiBold',
-    textTransform: 'uppercase',
     fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
   },
-  userIdContainer: {
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-  },
-  userIdLabel: {
-    ...Typography.caption,
-    color: Colors.gray,
+  dateTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-Bold',
+    color: Colors.black,
     marginBottom: Spacing.xs,
-    fontSize: 12,
   },
-  userId: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 11,
-  },
-  section: {
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
-  sectionTitle: {
-    ...Typography.h3,
-    color: Colors.black,
+  dateDescription: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: Colors.gray,
     marginBottom: Spacing.md,
-    fontFamily: 'Inter-SemiBold',
+    lineHeight: 20,
   },
-  infoGrid: {
+  dateInfo: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  infoRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  infoCard: {
-    flex: 1,
-    minWidth: '30%',
-    backgroundColor: Colors.white,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    ...Shadows.subtle,
-  },
-  infoLabel: {
-    ...Typography.caption,
-    color: Colors.gray,
-    marginBottom: Spacing.xs,
-    fontSize: 12,
-  },
-  infoValue: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.green,
-  },
-  statusText: {
-    ...Typography.caption,
-    color: Colors.green,
-    fontSize: 10,
-    fontFamily: 'Inter-SemiBold',
-  },
-  preferencesGrid: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    overflow: 'hidden',
-  },
-  preferenceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-  },
-  preferenceKey: {
-    ...Typography.bodySmall,
-    color: Colors.gray,
-    flex: 1,
-    fontSize: 14,
-  },
-  preferenceValue: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    flex: 2,
-    textAlign: 'right',
-    fontSize: 14,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  actionButton: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: Colors.white,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
     alignItems: 'center',
-    ...Shadows.subtle,
+    gap: Spacing.sm,
   },
-  actionEmoji: {
-    fontSize: 24,
-    marginBottom: Spacing.sm,
-  },
-  actionText: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    textAlign: 'center',
+  infoIcon: {
     fontSize: 14,
+    width: 20,
   },
-  welcomeSection: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.xl,
-    padding: Spacing.lg,
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(95, 240, 169, 0.2)',
-  },
-  welcomeTitle: {
-    ...Typography.h3,
+  infoText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
     color: Colors.black,
-    marginBottom: Spacing.sm,
-    fontFamily: 'Inter-SemiBold',
   },
-  welcomeText: {
-    ...Typography.body,
-    color: Colors.gray,
-    lineHeight: 22,
-    fontSize: 15,
-  },
-  debugSection: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    padding: Spacing.md,
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
+  joinButton: {
+    backgroundColor: Colors.green,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
+    alignItems: 'center',
   },
-  debugTitle: {
-    ...Typography.bodySmall,
-    color: Colors.gray,
+  joinButtonText: {
+    fontSize: 16,
     fontFamily: 'Inter-SemiBold',
-    marginBottom: Spacing.sm,
-    fontSize: 12,
+    color: Colors.black,
   },
-  spacer: {
+  joinedButton: {
+    backgroundColor: Colors.lightGray,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+  },
+  joinedButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.gray,
+  },
+  listFooter: {
     height: Spacing.xxl,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.lightGray,
+    paddingVertical: Spacing.sm,
+    paddingBottom: Spacing.lg,
+  },
+  navButton: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  navIcon: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  navLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: Colors.gray,
+  },
+  createButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.green,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -20,
+    marginBottom: 4,
+    ...Shadows.medium,
+  },
+  createButtonIcon: {
+    fontSize: 28,
+    fontFamily: 'Inter-Bold',
+    color: Colors.black,
   },
 });
