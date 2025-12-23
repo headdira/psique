@@ -16,7 +16,7 @@ import {
 // Configura o WebBrowser para fechar corretamente após o login
 WebBrowser.maybeCompleteAuthSession();
 
-interface AuthContextData {
+export interface AuthContextData {
   isAuthenticated: boolean | null;
   user: UserData | null;
   loading: boolean;
@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // === LOGIN COM GOOGLE (NOVO) ===
+  // === LOGIN COM GOOGLE (MODO FANTASMA) ===
   const loginWithGoogle = async () => {
     try {
       setLoading(true);
@@ -77,13 +77,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 1. Define a URL de redirecionamento do App (Deep Link)
       const redirectUri = Linking.createURL('/'); 
       
-      // 2. Monta a URL para abrir o seu Eros Auth
-      // AVISO: Certifique-se que o VITE_APP_URL no Netlify do Borababy 
-      // esteja apontando para este redirectUri ou que você trate isso lá.
-      // Por enquanto, abriremos a home e o usuário loga.
-      const authUrl = 'https://borababy.netlify.app'; 
+      // 2. Monta a URL com o parâmetro MÁGICO (?mode=google)
+      // Isso faz o site web redirecionar imediatamente sem mostrar tela
+      const authUrl = 'https://borababy.netlify.app/?mode=google'; 
 
-      console.log('🌐 Abrindo navegador para:', authUrl);
+      console.log('🌐 Abrindo navegador em modo direto para:', authUrl);
 
       // 3. Abre o navegador interno
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
@@ -310,7 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     loading,
     login,
-    loginWithGoogle, // Exportando a nova função
+    loginWithGoogle,
     logout,
     checkAuth,
     updateUser,

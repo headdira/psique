@@ -4,19 +4,19 @@ import {
   Text, 
   TextInput,
   TouchableOpacity, 
-  StyleSheet, 
   Alert,
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
   ScrollView
 } from 'react-native';
-// CORREÇÃO: Usando a biblioteca certa para Safe Area
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-// CORREÇÃO: Caminho apontando para src
 import { useAuth } from '../src/contexts/AuthContext';
-import { Colors, Typography, Spacing, BorderRadius } from '../src/theme';
+import { Colors } from '../src/theme';
+
+// Importando os estilos separados
+import { styles } from './index.styles'; 
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -214,194 +214,3 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.offWhite,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    flex: 1,
-    padding: Spacing.xl,
-  },
-  header: {
-    marginTop: Platform.OS === 'ios' ? Spacing.xl : Spacing.xxl,
-  },
-  logo: {
-    ...Typography.h1,
-    color: Colors.black,
-    letterSpacing: -1,
-    fontSize: 32,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: Spacing.xxl,
-  },
-  tagline: {
-    ...Typography.caption,
-    color: Colors.gray,
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-    marginBottom: Spacing.xxl * 1.5,
-  },
-  hero: {
-    marginBottom: Spacing.xl * 1.5,
-  },
-  heroLine1: {
-    fontSize: 56,
-    fontWeight: '300',
-    fontFamily: 'Inter-Regular', 
-    color: Colors.black,
-    textAlign: 'center',
-    lineHeight: 56,
-  },
-  heroLine2: {
-    fontSize: 56,
-    fontWeight: '900',
-    fontFamily: 'Montserrat-Bold',
-    color: Colors.black,
-    textAlign: 'center',
-    lineHeight: 56,
-    letterSpacing: -2,
-  },
-  description: {
-    ...Typography.body,
-    color: Colors.gray,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: Spacing.xl * 1.5,
-  },
-  inputContainer: {
-    width: '100%',
-    marginBottom: Spacing.lg,
-  },
-  input: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Platform.OS === 'ios' ? Spacing.md : Spacing.sm,
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: Colors.black,
-    height: 52,
-    textAlign: 'center',
-  },
-  inputError: {
-    borderColor: '#FF6B6B',
-  },
-  errorText: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#FF6B6B',
-    marginTop: Spacing.sm,
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: Colors.green,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-    width: '100%',
-  },
-  buttonText: {
-    ...Typography.button,
-    color: Colors.black,
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  orContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.lg,
-    width: '100%',
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.lightGray,
-  },
-  orText: {
-    ...Typography.caption,
-    color: Colors.gray,
-    marginHorizontal: Spacing.md,
-    fontSize: 14,
-  },
-  googleButton: {
-    backgroundColor: Colors.white,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    width: '100%',
-    marginBottom: Spacing.lg,
-  },
-  googleIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#4285F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  googleIconText: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  googleButtonText: {
-    ...Typography.button,
-    color: Colors.black,
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-  },
-  divider: {
-    width: 80,
-    height: 1,
-    backgroundColor: Colors.black,
-    marginVertical: Spacing.xl,
-    opacity: 0.2,
-  },
-  call: {
-    ...Typography.body,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-  },
-  forgotButton: {
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  forgotText: {
-    ...Typography.caption,
-    color: Colors.gray,
-    textDecorationLine: 'underline',
-    fontSize: 12,
-  },
-  footer: {
-    ...Typography.caption,
-    color: Colors.gray,
-    textAlign: 'center',
-    marginTop: 'auto',
-    paddingBottom: Spacing.xl,
-  },
-});

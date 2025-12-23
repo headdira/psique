@@ -2,24 +2,25 @@ import { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   Image,
   ActivityIndicator,
   ScrollView,
   Alert,
 } from 'react-native';
-// CORREÇÃO: Usando a biblioteca certa para Safe Area
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-// CORREÇÃO: Caminho apontando para src
 import { useAuth } from '../src/contexts/AuthContext';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../src/theme/index';
+import { Colors } from '../src/theme/index';
+
+// Importando os estilos separados
+import { styles } from './HomeScreen.styles';
 
 export default function HomeScreen() {
   const { isAuthenticated, user, loading, logout, checkAuth } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
 
+  // Efeito para verificar autenticação
   useEffect(() => {
     console.log('🔍 [HomeScreen] Verificando autenticação...');
     
@@ -37,6 +38,7 @@ export default function HomeScreen() {
     verifyAuth();
   }, []);
 
+  // Efeito para redirecionar se não autenticado
   useEffect(() => {
     if (!loading && !isChecking && isAuthenticated === false) {
       console.log('🚫 [HomeScreen] Não autenticado -> Redirecionando para Login');
@@ -239,274 +241,3 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.offWhite,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.offWhite,
-    padding: Spacing.xl,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: Colors.gray,
-    textAlign: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-    backgroundColor: Colors.offWhite,
-  },
-  logo: {
-    ...Typography.h2,
-    color: Colors.black,
-    letterSpacing: -1,
-    fontFamily: 'Montserrat-Bold',
-  },
-  logoutButton: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
-  },
-  logoutText: {
-    ...Typography.caption,
-    color: '#FF6B6B',
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-  },
-  profileCard: {
-    backgroundColor: Colors.white,
-    margin: Spacing.lg,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    ...Shadows.subtle,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.round,
-    marginRight: Spacing.lg,
-    backgroundColor: Colors.lightGray,
-  },
-  avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.green,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.lg,
-  },
-  avatarText: {
-    ...Typography.h1,
-    color: Colors.black,
-    fontSize: 32,
-    fontFamily: 'Montserrat-Bold',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  userName: {
-    ...Typography.h3,
-    color: Colors.black,
-    marginBottom: Spacing.xs,
-    fontFamily: 'Inter-SemiBold',
-  },
-  userEmail: {
-    ...Typography.body,
-    color: Colors.gray,
-    marginBottom: Spacing.sm,
-    fontSize: 14,
-  },
-  userType: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.green,
-  },
-  userTypeText: {
-    ...Typography.caption,
-    color: Colors.green,
-    fontFamily: 'Inter-SemiBold',
-    textTransform: 'uppercase',
-    fontSize: 12,
-  },
-  userIdContainer: {
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-  },
-  userIdLabel: {
-    ...Typography.caption,
-    color: Colors.gray,
-    marginBottom: Spacing.xs,
-    fontSize: 12,
-  },
-  userId: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 11,
-  },
-  section: {
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
-  sectionTitle: {
-    ...Typography.h3,
-    color: Colors.black,
-    marginBottom: Spacing.md,
-    fontFamily: 'Inter-SemiBold',
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  infoCard: {
-    flex: 1,
-    minWidth: '30%',
-    backgroundColor: Colors.white,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    ...Shadows.subtle,
-  },
-  infoLabel: {
-    ...Typography.caption,
-    color: Colors.gray,
-    marginBottom: Spacing.xs,
-    fontSize: 12,
-  },
-  infoValue: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.green,
-  },
-  statusText: {
-    ...Typography.caption,
-    color: Colors.green,
-    fontSize: 10,
-    fontFamily: 'Inter-SemiBold',
-  },
-  preferencesGrid: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    overflow: 'hidden',
-  },
-  preferenceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-  },
-  preferenceKey: {
-    ...Typography.bodySmall,
-    color: Colors.gray,
-    flex: 1,
-    fontSize: 14,
-  },
-  preferenceValue: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    flex: 2,
-    textAlign: 'right',
-    fontSize: 14,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  actionButton: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: Colors.white,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    alignItems: 'center',
-    ...Shadows.subtle,
-  },
-  actionEmoji: {
-    fontSize: 24,
-    marginBottom: Spacing.sm,
-  },
-  actionText: {
-    ...Typography.bodySmall,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  welcomeSection: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.xl,
-    padding: Spacing.lg,
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(95, 240, 169, 0.2)',
-  },
-  welcomeTitle: {
-    ...Typography.h3,
-    color: Colors.black,
-    marginBottom: Spacing.sm,
-    fontFamily: 'Inter-SemiBold',
-  },
-  welcomeText: {
-    ...Typography.body,
-    color: Colors.gray,
-    lineHeight: 22,
-    fontSize: 15,
-  },
-  spacer: {
-    height: Spacing.xxl,
-  },
-});
