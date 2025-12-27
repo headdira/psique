@@ -21,8 +21,10 @@ export interface AuthContextData {
   loading: boolean;
   login: (email: string) => Promise<{ success: boolean; message?: string; user?: UserData }>;
   loginWithGoogle: () => Promise<{ success: boolean; message?: string }>;
-  // ATUALIZADO: Agora é 'register' e recebe parâmetros para cadastro nativo
-  register: (nome: string, email: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  
+  // VOLTOU: Função que abre o navegador para cadastro
+  signup: () => Promise<{ success: boolean; message?: string }>; 
+  
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (userData: Partial<UserData>) => Promise<void>;
@@ -68,23 +70,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // === AUXILIAR: Lida com o retorno do navegador ===
+  // Auxiliar para processar o retorno do navegador (Google ou Signup)
   const handleBrowserReturn = async (result: WebBrowser.WebBrowserAuthSessionResult) => {
     if (result.type === 'success' && result.url) {
       const { queryParams } = Linking.parse(result.url);
       const gToken = queryParams?.['g_token'];
 
+      // Se voltar com token, fazemos o login
       if (typeof gToken === 'string') {
         const decoded = decodeJwt(gToken);
         if (decoded && decoded.email) {
           return await login(decoded.email);
         }
       }
+      
+      // Se voltar apenas com sucesso (sem token na URL), podemos pedir pro user logar
+      if (queryParams?.['login'] === 'success') {
+         return { success: true, message: 'Cadastro realizado. Faça login.' };
+      }
     }
     return { success: false, message: 'Operação cancelada ou falhou' };
   };
 
-  // === LOGIN COM GOOGLE ===
   const loginWithGoogle = async () => {
     try {
       setLoading(true);
@@ -99,58 +106,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // === CADASTRO NATIVO (NOVA FUNÇÃO) ===
-  const register = async (nome: string, email: string, password: string) => {
+  // === FUNÇÃO DE CADASTRO WEB ===
+  const signup = async () => {
     try {
       setLoading(true);
+      const redirectUri = Linking.createURL('/'); 
       
-      // IMPORTANTE: Ajuste para a URL correta da sua API Eros
-      const apiUrl = 'https://borababy.netlify.app/api/register'; 
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // Envia o JSON na ordem que definimos no Psique (Email, Nome, Senha)
-        // A API receberá este objeto
-        body: JSON.stringify({
-          email: email, 
-          nome: nome,
-          senha: password
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        return { success: true, message: 'Conta criada com sucesso!' };
-      } else {
-        return { success: false, message: data.message || 'Erro ao criar conta' };
-      }
-
+      // Abre o site com ?mode=signup
+      // A ordem dos inputs (Email primeiro) deve ser configurada NO SITE (LoginForm.jsx)
+      const authUrl = 'https://borababy.netlify.app/?mode=signup'; 
+      
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+      return await handleBrowserReturn(result);
     } catch (error: any) {
-      console.error('Erro no cadastro:', error);
-      return { success: false, message: 'Erro de conexão com o servidor' };
+      return { success: false, message: error.message };
     } finally {
       setLoading(false);
     }
   };
 
-  // === LOGIN EMAIL PADRÃO ===
   const login = async (email: string) => {
     try {
       setLoading(true);
       if (!email.trim()) return { success: false, message: 'Digite seu email' };
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) return { success: false, message: 'Digite um email válido' };
-
       const result = await clientesApi.getClienteByEmail(email);
       
       if (result.success && result.userId && result.userData) {
         const saved = await saveUserSession(result.userId, result.userData, result.userData.email);
-        
         if (saved) {
           setUser({ ...result.userData, id: result.userId, email: result.userData.email });
           setIsAuthenticated(true);
@@ -237,7 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ 
-      isAuthenticated, user, loading, login, loginWithGoogle, register, logout, checkAuth, updateUser, refreshUserData 
+      isAuthenticated, user, loading, login, loginWithGoogle, signup, logout, checkAuth, updateUser, refreshUserData 
     }}>
       {children}
     </AuthContext.Provider>

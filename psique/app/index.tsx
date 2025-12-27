@@ -22,12 +22,12 @@ export default function LoginScreen() {
   const [localLoading, setLocalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Modal de Recuperação
   const [modalVisible, setModalVisible] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   
-  const { login, loginWithGoogle, isAuthenticated, loading: authLoading } = useAuth();
+  // Pegamos o SIGNUP do contexto
+  const { login, loginWithGoogle, signup, isAuthenticated, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated === true) {
@@ -70,10 +70,21 @@ export default function LoginScreen() {
     }
   };
 
-  // === VOLTOU AO SIMPLES: Apenas avisa que está em breve ===
-  const handleSignup = () => {
-    // Como você pediu para cancelar a criação da tela, deixei um alerta simples
-    Alert.alert("Em breve", "O cadastro estará disponível em breve.");
+  // === ABRE O NAVEGADOR PARA CADASTRO ===
+  const handleSignup = async () => {
+    try {
+      const result = await signup();
+      if (result.success) {
+         // Se voltou com sucesso, ou já logou (token) ou avisa pra logar
+         if (!isAuthenticated) {
+            Alert.alert('Conta criada', 'Agora faça login com seu email.');
+         }
+      } else if (result.message !== 'Operação cancelada ou falhou') {
+        Alert.alert('Atenção', result.message || 'Erro no cadastro');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Ocorreu um erro ao abrir o cadastro');
+    }
   };
 
   const openRecoveryModal = () => {
