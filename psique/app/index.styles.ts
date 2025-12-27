@@ -1,7 +1,6 @@
-import { StyleSheet, Platform, Dimensions } from 'react-native';
-import { Colors, Typography, Spacing, BorderRadius } from '../src/theme';
-
-const { width } = Dimensions.get('window');
+import { StyleSheet, Platform } from 'react-native';
+// MANTIVE APENAS O QUE É GARANTIDO
+import { Colors, Typography, Spacing } from '../src/theme'; 
 
 export const styles = StyleSheet.create({
   container: {
@@ -80,7 +79,7 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.lightGray,
-    borderRadius: BorderRadius.md,
+    borderRadius: 8, // Corrigido manual
     paddingHorizontal: Spacing.lg,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
     fontSize: 15,
@@ -101,7 +100,7 @@ export const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: Colors.green,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 12, // Corrigido manual
     alignItems: 'center',
     marginBottom: 0,
     width: '100%',
@@ -118,7 +117,7 @@ export const styles = StyleSheet.create({
     opacity: 0.7,
   },
   
-  // === NOVOS ESTILOS VERTICAIS ===
+  // Estilos do layout compacto
   signupButton: {
     marginTop: 16,
     padding: 4,
@@ -164,7 +163,7 @@ export const styles = StyleSheet.create({
   },
   googleButton: {
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 12, // Corrigido manual
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
@@ -218,7 +217,7 @@ export const styles = StyleSheet.create({
     fontSize: 11,
   },
 
-  // === ESTILOS DO MODAL ===
+  // Modal (manual styles)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -226,9 +225,9 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    width: width * 0.85,
+    width: '85%',
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 16, // Corrigido manual
     padding: Spacing.xl,
     alignItems: 'center',
     ...Platform.select({
@@ -262,7 +261,7 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.offWhite,
     borderWidth: 1,
     borderColor: Colors.lightGray,
-    borderRadius: BorderRadius.md,
+    borderRadius: 8, // Corrigido manual
     paddingHorizontal: Spacing.md,
     height: 48,
     fontSize: 15,
@@ -278,7 +277,7 @@ export const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     height: 44,
-    borderRadius: BorderRadius.md,
+    borderRadius: 8, // Corrigido manual
     justifyContent: 'center',
     alignItems: 'center',
   },

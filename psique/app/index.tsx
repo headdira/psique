@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
-  TextInput,
+  TextInput, 
   TouchableOpacity, 
   Alert,
   ActivityIndicator,
@@ -22,12 +22,12 @@ export default function LoginScreen() {
   const [localLoading, setLocalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Estados para o Modal de Recuperação
+  // Modal de Recuperação
   const [modalVisible, setModalVisible] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   
-  const { login, loginWithGoogle, signup, isAuthenticated, loading: authLoading } = useAuth();
+  const { login, loginWithGoogle, isAuthenticated, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated === true) {
@@ -48,7 +48,7 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      const result = await login(email);
+      const result = await login(email); 
       if (!result.success) {
         setError(result.message || 'Email não encontrado');
       }
@@ -70,19 +70,14 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSignup = async () => {
-    try {
-      const result = await signup();
-      if (!result.success && result.message !== 'Operação cancelada ou falhou') {
-        Alert.alert('Atenção', result.message || 'Erro no cadastro');
-      }
-    } catch (error) {
-      Alert.alert('Erro', 'Ocorreu um erro ao abrir o cadastro');
-    }
+  // === VOLTOU AO SIMPLES: Apenas avisa que está em breve ===
+  const handleSignup = () => {
+    // Como você pediu para cancelar a criação da tela, deixei um alerta simples
+    Alert.alert("Em breve", "O cadastro estará disponível em breve.");
   };
 
   const openRecoveryModal = () => {
-    setRecoveryEmail(email);
+    setRecoveryEmail(email); 
     setModalVisible(true);
   };
 
@@ -138,22 +133,20 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   editable={!isLoading}
                 />
-                {error && <Text style={styles.errorText}>{error}</Text>}
               </View>
+
+              {error && <Text style={styles.errorText}>{error}</Text>}
               
-              {/* Botão Entrar */}
               <TouchableOpacity style={[styles.button, isLoading && styles.buttonDisabled]} onPress={handleLogin} disabled={isLoading} activeOpacity={0.8}>
                 {isLoading && !authLoading ? <ActivityIndicator color={Colors.black} /> : <Text style={styles.buttonText}>Entrar com email</Text>}
               </TouchableOpacity>
 
-              {/* Link Cadastrar */}
               <TouchableOpacity style={styles.signupButton} onPress={handleSignup} disabled={isLoading}>
                 <Text style={styles.signupText}>
                   Não tem uma conta? <Text style={styles.signupTextBold}>Cadastre-se</Text>
                 </Text>
               </TouchableOpacity>
 
-              {/* Link Esqueci a senha */}
               <TouchableOpacity style={styles.forgotButtonInline} onPress={openRecoveryModal} disabled={isLoading}>
                 <Text style={styles.forgotTextInline}>Esqueceu a senha?</Text>
               </TouchableOpacity>
@@ -164,7 +157,6 @@ export default function LoginScreen() {
                 <View style={styles.dividerLine} />
               </View>
               
-              {/* Botão Google */}
               <TouchableOpacity style={[styles.googleButton, isLoading && styles.buttonDisabled]} onPress={handleGoogleLogin} disabled={isLoading} activeOpacity={0.8}>
                 {authLoading ? <ActivityIndicator color={Colors.black} /> : (
                   <>
@@ -182,7 +174,6 @@ export default function LoginScreen() {
             <Text style={styles.footer}>Conexões reais • Intenção real</Text>
           </View>
           
-          {/* MODAL DE RECUPERAÇÃO */}
           <Modal
             animationType="fade"
             transparent={true}

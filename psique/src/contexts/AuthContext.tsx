@@ -21,7 +21,8 @@ export interface AuthContextData {
   loading: boolean;
   login: (email: string) => Promise<{ success: boolean; message?: string; user?: UserData }>;
   loginWithGoogle: () => Promise<{ success: boolean; message?: string }>;
-  signup: () => Promise<{ success: boolean; message?: string }>; // <--- NOVA FUNÇÃO
+  // ATUALIZADO: Agora é 'register' e recebe parâmetros para cadastro nativo
+  register: (nome: string, email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (userData: Partial<UserData>) => Promise<void>;
@@ -98,17 +99,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // === CADASTRO (SIGNUP) ===
-  const signup = async () => {
+  // === CADASTRO NATIVO (NOVA FUNÇÃO) ===
+  const register = async (nome: string, email: string, password: string) => {
     try {
       setLoading(true);
-      const redirectUri = Linking.createURL('/'); 
-      // Abre o site no modo de cadastro
-      const authUrl = 'https://borababy.netlify.app/?mode=signup'; 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-      return await handleBrowserReturn(result);
+      
+      // IMPORTANTE: Ajuste para a URL correta da sua API Eros
+      const apiUrl = 'https://borababy.netlify.app/api/register'; 
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Envia o JSON na ordem que definimos no Psique (Email, Nome, Senha)
+        // A API receberá este objeto
+        body: JSON.stringify({
+          email: email, 
+          nome: nome,
+          senha: password
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        return { success: true, message: 'Conta criada com sucesso!' };
+      } else {
+        return { success: false, message: data.message || 'Erro ao criar conta' };
+      }
+
     } catch (error: any) {
-      return { success: false, message: error.message };
+      console.error('Erro no cadastro:', error);
+      return { success: false, message: 'Erro de conexão com o servidor' };
     } finally {
       setLoading(false);
     }
@@ -214,7 +237,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ 
-      isAuthenticated, user, loading, login, loginWithGoogle, signup, logout, checkAuth, updateUser, refreshUserData 
+      isAuthenticated, user, loading, login, loginWithGoogle, register, logout, checkAuth, updateUser, refreshUserData 
     }}>
       {children}
     </AuthContext.Provider>
