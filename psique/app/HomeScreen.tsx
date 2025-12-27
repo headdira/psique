@@ -7,66 +7,35 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
-  Platform // <--- Importante para detectar se é Web ou Celular
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors } from '../src/theme/index';
-
 import { styles } from './HomeScreen.styles';
 
 export default function HomeScreen() {
   const { isAuthenticated, user, loading, logout, checkAuth } = useAuth();
-  const [isChecking, setIsChecking] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Efeito para verificar autenticação
+  // Verifica autenticação ao entrar
   useEffect(() => {
-    console.log('🔍 [HomeScreen] Verificando autenticação...');
-    const verifyAuth = async () => {
-      try {
-        setIsChecking(true);
-        await checkAuth();
-      } catch (error) {
-        console.error('❌ [HomeScreen] Erro:', error);
-      } finally {
-        setIsChecking(false);
-      }
-    };
-    verifyAuth();
+    checkAuth();
   }, []);
 
-  // Efeito de segurança: Se deslogou, chuta para o login
+  // Monitora se o usuário foi deslogado para redirecionar
   useEffect(() => {
-    // Se terminou de carregar e não está autenticado
-    if (!loading && !isChecking && isAuthenticated === false) {
-      console.log('👋 [HomeScreen] Deslogado -> Indo para Login');
+    if (!loading && isAuthenticated === false) {
       router.replace('/');
     }
-  }, [isAuthenticated, loading, isChecking]);
-
-  // === LÓGICA DE LOGOUT CORRIGIDA ===
-  const performLogout = async () => {
-    console.log('🚪 Executando Logout...');
-    try {
-      await logout(); // Limpa o contexto/storage
-      console.log('✅ Logout concluído. Redirecionando...');
-      router.replace('/'); // Força a ida para a raiz
-    } catch (error) {
-      console.error('❌ Erro ao sair:', error);
-    }
-  };
+  }, [isAuthenticated, loading]);
 
   const handleLogout = () => {
-    // Se for WEB, usa o confirm do navegador (mais confiável no localhost)
     if (Platform.OS === 'web') {
-      const confirm = window.confirm('Tem certeza que deseja desconectar?');
-      if (confirm) {
-        performLogout();
-      }
-    } 
-    // Se for CELULAR (iOS/Android), usa o Alert nativo bonitinho
-    else {
+      const confirm = window.confirm("Tem certeza que deseja sair?");
+      if (confirm) performLogout();
+    } else {
       Alert.alert(
         'Sair',
         'Tem certeza que deseja desconectar?',
@@ -82,7 +51,19 @@ export default function HomeScreen() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const performLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      router.replace('/');
+    } catch (error) {
+      console.error('Erro ao sair:', error);
+      setIsLoggingOut(false);
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString('pt-BR', {
@@ -95,16 +76,15 @@ export default function HomeScreen() {
     }
   };
 
-  if (loading || isChecking) {
+  if (loading || isLoggingOut) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando sua vibe...</Text>
+        <Text style={styles.loadingText}>Carregando...</Text>
       </View>
     );
   }
 
-  // Fallback de segurança se o user for null
   if (!user) {
     return (
       <View style={styles.loadingContainer}>
@@ -124,6 +104,7 @@ export default function HomeScreen() {
           <TouchableOpacity 
             style={styles.logoutButton}
             onPress={handleLogout}
+            disabled={isLoggingOut}
           >
             <Text style={styles.logoutText}>sair</Text>
           </TouchableOpacity>
@@ -168,12 +149,14 @@ export default function HomeScreen() {
           <View style={styles.infoGrid}>
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Criada em</Text>
-              <Text style={styles.infoValue}>{formatDate(user.created_at)}</Text>
+              {/* CORREÇÃO AQUI: || '' */}
+              <Text style={styles.infoValue}>{formatDate(user.created_at || '')}</Text>
             </View>
             
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Atualizada em</Text>
-              <Text style={styles.infoValue}>{formatDate(user.updated_at)}</Text>
+              {/* CORREÇÃO AQUI: || '' */}
+              <Text style={styles.infoValue}>{formatDate(user.updated_at || '')}</Text>
             </View>
             
             <View style={styles.infoCard}>
@@ -185,7 +168,7 @@ export default function HomeScreen() {
           </View>
         </View>
         
-        {/* Preferências (se existirem) */}
+        {/* Preferências */}
         {user.gosto && Object.keys(user.gosto).length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🎭 Suas preferências</Text>
@@ -254,7 +237,6 @@ export default function HomeScreen() {
           </Text>
         </View>
         
-        {/* Espaço no final */}
         <View style={styles.spacer} />
         
       </ScrollView>

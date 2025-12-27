@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+// ADICIONEI ESTE IMPORT QUE FALTAVA:
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
+
 import { 
   getUserId, 
   getUserData, 
   getUserEmail,
-  getSessionToken,
   clearSession,
   isLoggedIn,
   saveUserSession,
@@ -19,11 +21,10 @@ export interface AuthContextData {
   isAuthenticated: boolean | null;
   user: UserData | null;
   loading: boolean;
+  
   login: (email: string) => Promise<{ success: boolean; message?: string; user?: UserData }>;
   loginWithGoogle: () => Promise<{ success: boolean; message?: string }>;
-  
-  // VOLTOU: Função que abre o navegador para cadastro
-  signup: () => Promise<{ success: boolean; message?: string }>; 
+  signup: () => Promise<{ success: boolean; message?: string }>;
   
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -70,23 +71,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Auxiliar para processar o retorno do navegador (Google ou Signup)
   const handleBrowserReturn = async (result: WebBrowser.WebBrowserAuthSessionResult) => {
     if (result.type === 'success' && result.url) {
       const { queryParams } = Linking.parse(result.url);
+      
       const gToken = queryParams?.['g_token'];
-
-      // Se voltar com token, fazemos o login
       if (typeof gToken === 'string') {
         const decoded = decodeJwt(gToken);
+        
         if (decoded && decoded.email) {
-          return await login(decoded.email);
+          const userData: UserData = {
+            id: decoded.sub || decoded.id || 'temp_id',
+            email: decoded.email,
+            nome: decoded.name || decoded.nome || 'Usuário',
+            type: 'user', 
+            foto: decoded.picture || decoded.foto
+          };
+          
+          await saveUserSession(userData.id, userData, userData.email, gToken);
+          setUser(userData);
+          setIsAuthenticated(true);
+          return { success: true, message: 'Autenticado com sucesso' };
         }
       }
       
-      // Se voltar apenas com sucesso (sem token na URL), podemos pedir pro user logar
       if (queryParams?.['login'] === 'success') {
-         return { success: true, message: 'Cadastro realizado. Faça login.' };
+         return { success: true, message: 'Sucesso! Agora faça login.' };
       }
     }
     return { success: false, message: 'Operação cancelada ou falhou' };
@@ -106,16 +116,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // === FUNÇÃO DE CADASTRO WEB ===
   const signup = async () => {
     try {
       setLoading(true);
       const redirectUri = Linking.createURL('/'); 
-      
-      // Abre o site com ?mode=signup
-      // A ordem dos inputs (Email primeiro) deve ser configurada NO SITE (LoginForm.jsx)
       const authUrl = 'https://borababy.netlify.app/?mode=signup'; 
-      
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
       return await handleBrowserReturn(result);
     } catch (error: any) {
@@ -134,18 +139,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (result.success && result.userId && result.userData) {
         const saved = await saveUserSession(result.userId, result.userData, result.userData.email);
+        
         if (saved) {
           setUser({ ...result.userData, id: result.userId, email: result.userData.email });
           setIsAuthenticated(true);
-          return { success: true, message: 'Login realizado com sucesso', user: { ...result.userData, id: result.userId, email: result.userData.email } };
-        } else {
-          return { success: false, message: 'Erro ao salvar sessão' };
+          return { 
+            success: true, 
+            message: 'Login realizado com sucesso', 
+            user: { ...result.userData, id: result.userId, email: result.userData.email } 
+          };
         }
-      } else {
-        return { success: false, message: result.message || 'Email não encontrado.' };
       }
+      return { success: false, message: result.message || 'Email não encontrado.' };
     } catch (error: any) {
-      return { success: false, message: error.message || 'Erro ao conectar com o servidor' };
+      return { success: false, message: error.message || 'Erro de conexão' };
     } finally {
       setLoading(false);
     }
@@ -172,13 +179,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userId = await getUserId();
         const userData = await getUserData();
         const userEmail = await getUserEmail();
+        
         if (userId && userData) {
           setUser({ ...userData, id: userId, email: userEmail || userData.email });
           setIsAuthenticated(true);
         } else {
-          await clearSession();
-          setIsAuthenticated(false);
-          setUser(null);
+          await logout();
         }
       } else {
         setIsAuthenticated(false);
@@ -196,26 +202,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user) {
       const updatedUser = { ...user, ...userData };
       setUser(updatedUser);
-      await saveUserSession(user.id, updatedUser, updatedUser.email);
+      // AGORA O ASYNC STORAGE EXISTE NO IMPORT
+      const currentToken = await AsyncStorage.getItem('@psique:session_token') || undefined;
+      await saveUserSession(user.id, updatedUser, updatedUser.email, currentToken);
     }
   };
 
   const refreshUserData = async () => {
     if (user?.email) {
       const result = await clientesApi.getClienteByEmail(user.email);
-      if (result.success && result.userId && result.userData) {
-        const updatedUser = { ...result.userData, id: result.userId, email: result.userData.email };
-        setUser(updatedUser);
-        await saveUserSession(result.userId, result.userData, result.userData.email);
-        return updatedUser;
+      if (result.success && result.userData) {
+        await updateUser(result.userData);
       }
     }
   };
 
   useEffect(() => {
     checkAuth();
-    const interval = setInterval(() => { if (isAuthenticated) checkAuth(); }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
   }, []);
 
   return (
