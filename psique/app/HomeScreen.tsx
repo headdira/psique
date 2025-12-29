@@ -149,13 +149,11 @@ export default function HomeScreen() {
           <View style={styles.infoGrid}>
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Criada em</Text>
-              {/* CORREÇÃO AQUI: || '' */}
               <Text style={styles.infoValue}>{formatDate(user.created_at || '')}</Text>
             </View>
             
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Atualizada em</Text>
-              {/* CORREÇÃO AQUI: || '' */}
               <Text style={styles.infoValue}>{formatDate(user.updated_at || '')}</Text>
             </View>
             
@@ -202,20 +200,21 @@ export default function HomeScreen() {
               <Text style={styles.actionText}>Perfil</Text>
             </TouchableOpacity>
             
+            {/* === NOVO BOTÃO DE MENSAGENS === */}
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
+              onPress={() => router.push('/messages')}
             >
-              <Text style={styles.actionEmoji}>❤️</Text>
-              <Text style={styles.actionText}>Matches</Text>
+              <Text style={styles.actionEmoji}>💬</Text>
+              <Text style={styles.actionText}>Mensagens</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.actionButton}
               onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
             >
-              <Text style={styles.actionEmoji}>🔍</Text>
-              <Text style={styles.actionText}>Descobrir</Text>
+              <Text style={styles.actionEmoji}>❤️</Text>
+              <Text style={styles.actionText}>Matches</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
