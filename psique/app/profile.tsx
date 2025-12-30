@@ -548,8 +548,8 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <View style={styles.footer}>
-          <Text style={styles.versionText}>Versão 1.0.0</Text>
-          <Text style={styles.footerText}>Psique App © 2024</Text>
+          <Text style={styles.versionText}>Versão 2.0.0</Text>
+          <Text style={styles.footerText}>Psique App © 2026</Text>
         </View>
       </ScrollView>
 

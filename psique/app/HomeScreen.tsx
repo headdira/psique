@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   StyleSheet,
   Modal,
   TextInput,
-  RefreshControl
+  RefreshControl,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,1582 +20,1779 @@ import { Colors, Typography, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { apiService } from '../src/api/apiDates';
 
-// Filtros disponíveis
-const FILTER_CATEGORIES = [
-  {
-    id: 'vibe',
-    title: 'Vibe',
-    options: [
-      { id: 'chill', label: 'Chill', icon: '☕️' },
-      { id: 'social', label: 'Social', icon: '👥' },
-      { id: 'adventure', label: 'Aventura', icon: '🧗' },
-      { id: 'creative', label: 'Criativo', icon: '🎨' },
-      { id: 'foodie', label: 'Foodie', icon: '🍴' },
-      { id: 'music', label: 'Música', icon: '🎵' },
-      { id: 'night', label: 'Noite', icon: '🌙' },
-      { id: 'sports', label: 'Esportes', icon: '⚽️' },
-    ],
-  },
-  {
-    id: 'location',
-    title: 'Local',
-    options: [
-      { id: 'nearby', label: 'Perto de você', icon: '📍' },
-      { id: 'center', label: 'Centro', icon: '🏙️' },
-      { id: 'beach', label: 'Praia', icon: '🏖️' },
-      { id: 'park', label: 'Parque', icon: '🌳' },
-      { id: 'indoors', label: 'Lugar fechado', icon: '🏠' },
-      { id: 'outdoors', label: 'Ar livre', icon: '🌞' },
-    ],
-  },
-  {
-    id: 'time',
-    title: 'Horário',
-    options: [
-      { id: 'morning', label: 'Manhã', icon: '🌅' },
-      { id: 'afternoon', label: 'Tarde', icon: '☀️' },
-      { id: 'evening', label: 'Pôr do sol', icon: '🌇' },
-      { id: 'night', label: 'Noite', icon: '🌃' },
-      { id: 'weekend', label: 'Fim de semana', icon: '🎉' },
-      { id: 'weekday', label: 'Dia de semana', icon: '📅' },
-    ],
-  },
-];
-
-// Função para mapear dados da API para o formato do frontend
-const mapApiDateToCard = (apiDate: any, index: number) => {
-  // Mapear tipo para imagem
-  const imageMap: Record<string, string> = {
-    parque: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
-    praia: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
-    bar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4',
-    restaurante: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0',
-    cinema: 'https://images.unsplash.com/photo-1489599809516-9827b6d1cf13',
-    show: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f',
-    cafe: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085',
-    outro: 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e',
+// Componente de Date Card atualizado
+const DateCard = ({ date, onPress }: any) => {
+  const statusColors: any = {
+    accepted: Colors.green,
+    pending: Colors.blue,
+    rejected: Colors.red,
+    not_submitted: Colors.gray
   };
 
-  // Mapear tone para interesses
-  const toneToInterests: Record<string, string[]> = {
-    friendship: ['chill', 'social'],
-    adventure: ['adventure', 'nature'],
-    romantic: ['chill', 'music'],
-    networking: ['social', 'business'],
-    casual: ['chill', 'food'],
+  const statusIcons: any = {
+    accepted: 'checkmark-circle',
+    pending: 'time',
+    rejected: 'close-circle',
+    not_submitted: 'add-circle'
   };
 
-  // Mapear tone para vibe
-  const toneToVibe: Record<string, string> = {
-    friendship: 'chill',
-    adventure: 'adventure',
-    romantic: 'romantic',
-    networking: 'social',
-    casual: 'casual',
-  };
-
-  const date = new Date(apiDate.datetime);
-  const now = new Date();
-  const diffTime = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  // Determinar label da data
-  let dateLabel = '';
-  if (diffDays === 0) {
-    dateLabel = 'HOJE';
-  } else if (diffDays === 1) {
-    dateLabel = 'AMANHÃ';
-  } else if (diffDays <= 7) {
-    const days = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
-    dateLabel = days[date.getDay()];
-  } else {
-    dateLabel = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase();
-  }
-
-  // Extrair cidade da localização (primeira parte antes da vírgula)
-  const locationParts = apiDate.location.split(',');
-  const city = locationParts.length > 1 ? locationParts[0].trim() : apiDate.location;
-
-  // Calcular participantes aceitos
-  const participants = apiDate.participants || {};
-  const acceptedParticipants = Object.values(participants).filter((p: any) => p.status === 'accepted').length;
-  
-  // Calcular vagas disponíveis (criador conta como 1 participante)
-  const maxParticipants = Number(apiDate.max_participants) || 1;
-  const availableSlots = Math.max(0, maxParticipants - (acceptedParticipants + 1));
-
-  return {
-    id: apiDate.id || `temp-${index}`,
-    title: apiDate.description.split('.')[0] || apiDate.type,
-    description: apiDate.description,
-    image: imageMap[apiDate.type.toLowerCase()] || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
-    date: dateLabel,
-    time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    location: apiDate.location,
-    city: city,
-    distance: `${Math.floor(Math.random() * 10) + 1} km`,
-    attendees: acceptedParticipants,
-    maxAttendees: maxParticipants,
-    availableSlots: availableSlots,
-    interests: toneToInterests[apiDate.tone] || ['chill', 'social'],
-    vibe: toneToVibe[apiDate.tone] || 'chill',
-    creator: {
-      name: 'Host',
-      age: 28,
-      sharedInterests: Math.floor(Math.random() * 3) + 1,
-    },
-    apiData: apiDate,
-  };
+  return (
+    <TouchableOpacity style={tw.dateCard} onPress={onPress} activeOpacity={0.9}>
+      <View style={tw.cardHeader}>
+        <View style={tw.dateBadge}>
+          <Text style={tw.dateDay}>{date.date}</Text>
+          <Text style={tw.dateTime}>{date.time}</Text>
+        </View>
+        {date.userStatus !== 'not_submitted' && (
+          <View style={[tw.userStatusBadge, { backgroundColor: `${statusColors[date.userStatus]}20` }]}>
+            <Ionicons 
+              name={statusIcons[date.userStatus]} 
+              size={12} 
+              color={statusColors[date.userStatus]} 
+            />
+            <Text style={[tw.userStatusText, { color: statusColors[date.userStatus] }]}>
+              {date.userStatus === 'accepted' ? 'Aceito' :
+               date.userStatus === 'pending' ? 'Pendente' :
+               date.userStatus === 'rejected' ? 'Recusado' : ''}
+            </Text>
+          </View>
+        )}
+      </View>
+      
+      <View style={tw.imageContainer}>
+        <Image source={{ uri: date.image }} style={tw.cardImage} />
+        <View style={tw.typeBadge}>
+          <Ionicons 
+            name={getIconForType(date.type)} 
+            size={12} 
+            color={Colors.white} 
+          />
+          <Text style={tw.typeText}>
+            {date.type === 'praia' ? 'Praia' :
+             date.type === 'bar' ? 'Bar' :
+             date.type === 'parque' ? 'Parque' :
+             date.type === 'cafe' ? 'Café' :
+             date.type === 'show' ? 'Show' :
+             date.type === 'cinema' ? 'Cinema' :
+             date.type === 'restaurante' ? 'Restaurante' : 'Outro'}
+          </Text>
+        </View>
+      </View>
+      
+      <View style={tw.cardContent}>
+        <View style={tw.locationRow}>
+          <Ionicons name="location" size={14} color={Colors.gray} />
+          <Text style={tw.locationText}>{date.city}</Text>
+        </View>
+        
+        <Text style={tw.cardTitle}>{date.title}</Text>
+        <Text style={tw.cardDescription} numberOfLines={2}>
+          {date.description}
+        </Text>
+        
+        <View style={tw.cardFooter}>
+          <View style={tw.vibeBadge}>
+            <Ionicons name="flash" size={12} color={Colors.gray} />
+            <Text style={tw.vibeText}>
+              {date.apiData?.tone === 'friendship' ? 'Amizade' :
+               date.apiData?.tone === 'adventure' ? 'Aventura' :
+               date.apiData?.tone === 'romantic' ? 'Romântico' : 'Casual'}
+            </Text>
+          </View>
+          
+          <View style={tw.participantInfo}>
+            <Ionicons name="people" size={14} color={Colors.gray} />
+            <Text style={tw.participantCount}>
+              {date.attendees}/{date.maxAttendees}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 };
 
-export default function HomeScreen() {
-  const { isAuthenticated, user, loading: authLoading } = useAuth();
-  const [isChecking, setIsChecking] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dates, setDates] = useState<any[]>([]);
-  const [loadingDates, setLoadingDates] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [showDateDetails, setShowDateDetails] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<any>(null);
-  const [userSubmissionStatus, setUserSubmissionStatus] = useState<{
-    user_status: string;
-    submission: any;
-    can_submit: boolean;
-  } | null>(null);
-  const [loadingSubmission, setLoadingSubmission] = useState(false);
+// Modal de Detalhes com todas as funcionalidades
+const DateDetailsModal = ({ 
+  visible, 
+  date, 
+  userStatus,
+  onClose,
+  loadDates
+}: any) => {
+  const { user } = useAuth();
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    description: '',
+    location: '',
+    datetime: '',
+    max_participants: 1,
+    type: 'outro',
+    payment: 'both',
+    tone: 'friendship'
+  });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submissionMessage, setSubmissionMessage] = useState('');
-
+  const [acceptedUser, setAcceptedUser] = useState<any>(null);
+  const [showChatPrompt, setShowChatPrompt] = useState(false);
+  const [isResponding, setIsResponding] = useState(false);
+  
   useEffect(() => {
-    const verifyAuth = async () => {
-      try {
-        setIsChecking(true);
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
-      } finally {
-        setIsChecking(false);
-      }
-    };
-    verifyAuth();
-  }, []);
-
-  useEffect(() => {
-    if (!authLoading && !isChecking && !isAuthenticated) {
-      router.replace('/');
+    if (visible && date && userStatus?.user_status === 'creator') {
+      loadSubmissions();
     }
-  }, [isAuthenticated, authLoading, isChecking]);
-
+  }, [visible, date, userStatus]);
+  
   useEffect(() => {
-    if (isAuthenticated && !isChecking) {
-      loadDates();
+    if (date) {
+      setEditData({
+        description: date.description || '',
+        location: date.location || '',
+        datetime: date.apiData?.datetime || '',
+        max_participants: date.maxAttendees || 1,
+        type: date.apiData?.type || 'outro',
+        payment: date.apiData?.payment || 'both',
+        tone: date.apiData?.tone || 'friendship'
+      });
+      setMessage('');
+      setAcceptedUser(null);
+      setShowChatPrompt(false);
     }
-  }, [isAuthenticated, isChecking]);
-
-  const loadDates = async () => {
+  }, [date]);
+  
+  const loadSubmissions = async () => {
+    if (!date?.id || !user?.id) return;
+    
+    setLoadingSubmissions(true);
     try {
-      setLoadingDates(true);
-      const response = await apiService.getDates();
-      
-      if (response.ok && response.dates) {
-        const mappedDates = response.dates.map((date, index) => 
-          mapApiDateToCard(date, index)
-        );
-        setDates(mappedDates);
-      } else {
-        Alert.alert('Erro', 'Não foi possível carregar os rolês');
+      const response = await apiService.getDateSubmissions(date.id, user.id);
+      if (response.ok) {
+        setSubmissions(response.submissions || []);
       }
     } catch (error) {
-      console.error('Erro ao carregar dates:', error);
-      Alert.alert('Erro', 'Falha na conexão com o servidor');
+      console.error('Erro ao carregar submissões:', error);
     } finally {
-      setLoadingDates(false);
-      setRefreshing(false);
+      setLoadingSubmissions(false);
     }
   };
+  
+  // NOVA FUNÇÃO SIMPLES DE ACEITAR (baseada no botão de teste)
+  const handleAcceptSubmission = async (submission: any) => {
+    if (!user?.id || !date?.id) {
+      Alert.alert('Erro', 'Usuário ou date não encontrado');
+      return;
+    }
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadDates();
-  };
-
-  const toggleFilter = (filterId: string) => {
-    setActiveFilters(prev =>
-      prev.includes(filterId)
-        ? prev.filter(id => id !== filterId)
-        : [...prev, filterId]
-    );
-  };
-
-  const clearFilters = () => {
-    setActiveFilters([]);
-    setSearchQuery('');
-  };
-
-  const handleOpenDateDetails = async (date: any) => {
-    setSelectedDate(date);
-    setSubmissionMessage('');
+    setIsResponding(true);
     
     try {
-      setLoadingSubmission(true);
-      
-      // Verificar status da submissão do usuário para este date
-      const response = await apiService.getMySubmission(date.id, user?.id || '');
-      
-      if (response.ok) {
-        setUserSubmissionStatus({
-          user_status: response.user_status,
-          submission: response.submission,
-          can_submit: response.can_submit
-        });
-      } else {
-        // Se houver erro, mostrar mensagem
-        if (response.error && !response.error.includes('not found')) {
-          Alert.alert(
-            'Aviso',
-            'Não foi possível verificar seu status de submissão. Você ainda pode tentar se inscrever.',
-            [{ text: 'Entendi', style: 'cancel' }]
-          );
+      const response = await apiService.respondToSubmission(
+        date.id,
+        {
+          creator_user_id: user.id,
+          requester_user_id: submission.user_id,
+          accept: true,
+          reason: 'Bem-vindo ao date!'
         }
-        
-        // Define status padrão
-        setUserSubmissionStatus({
-          user_status: 'not_submitted',
-          submission: null,
-          can_submit: true
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao verificar submissão:', error);
-      
-      Alert.alert(
-        'Erro de conexão',
-        'Não foi possível verificar seu status. Verifique sua conexão.',
-        [{ text: 'OK', style: 'cancel' }]
       );
       
-      setUserSubmissionStatus({
-        user_status: 'not_submitted',
-        submission: null,
-        can_submit: true
-      });
+      if (response.ok) {
+        Alert.alert(
+          '✅ Sucesso!', 
+          `${submission.user_name} foi aceito no date!`,
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              // Atualizar os dados
+              loadSubmissions();
+              loadDates();
+              setAcceptedUser(submission);
+              setShowChatPrompt(true);
+            }
+          }]
+        );
+      } else {
+        Alert.alert('❌ Erro', response.error || 'Não foi possível aceitar o usuário');
+      }
+    } catch (error: any) {
+      Alert.alert('❌ Erro de Conexão', error.message || 'Não foi possível conectar ao servidor');
     } finally {
-      setLoadingSubmission(false);
-      setShowDateDetails(true);
+      setIsResponding(false);
     }
   };
-
-  const handleSubmitToDate = async () => {
-    if (!user?.id || !selectedDate) {
-      Alert.alert('Erro', 'Você precisa estar logado para participar');
-      return;
-    }
-
-    if (userSubmissionStatus?.user_status === 'creator') {
-      Alert.alert('Aviso', 'Você é o criador deste date');
-      return;
-    }
-
-    if (!userSubmissionStatus?.can_submit) {
-      Alert.alert('Aviso', 'Você já se submeteu a este date');
-      return;
-    }
-
-    setSubmitting(true);
+  
+  const handleStartChat = (submission: any) => {
+    router.push({
+      pathname: '/chat',
+      params: {
+        userId: submission.user_id,
+        userName: submission.user_name,
+        dateId: date.id,
+        dateTitle: date.title
+      }
+    });
+    onClose();
+  };
+  
+  const handleSaveEdit = async () => {
+    if (!user?.id || !date?.id) return;
     
+    setSaving(true);
+    try {
+      const response = await apiService.updateDate({
+        creator_user_id: user.id,
+        date_id: date.id,
+        updates: editData,
+        creator_is_premium: false
+      });
+      
+      if (response.ok) {
+        Alert.alert('Sucesso', 'Date atualizado com sucesso!');
+        setIsEditing(false);
+        loadDates();
+      } else {
+        Alert.alert('Erro', response.error);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Falha na conexão');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  const handleSubmitToDate = async () => {
+    if (!user?.id || !date?.id || !message.trim()) return;
+    
+    setSubmitting(true);
     try {
       const response = await apiService.submitToDate(
-        selectedDate.id,
+        date.id,
         user.id,
-        submissionMessage,
+        message,
         user.nome,
         user.foto_perfil
       );
-
+      
       if (response.ok) {
-        Alert.alert('Sucesso!', response.message || 'Sua submissão foi enviada com sucesso');
-        
-        // Atualizar status da submissão
-        setUserSubmissionStatus({
-          user_status: 'pending',
-          submission: response.submission,
-          can_submit: false
-        });
-        
-        setSubmissionMessage('');
-        
-        // Recarregar a lista de dates para atualizar contadores
+        Alert.alert('Sucesso', 'Submissão enviada com sucesso!');
+        setMessage('');
         loadDates();
+        onClose();
       } else {
-        // Mapear erros comuns para mensagens amigáveis
-        let errorMessage = response.error;
-        
-        if (response.data?.status === 409) {
-          // Conflitos específicos
-          if (errorMessage.includes('full') || errorMessage.includes('cheio')) {
-            errorMessage = 'Este date já está cheio. Não há mais vagas disponíveis.';
-          } else if (errorMessage.includes('already') || errorMessage.includes('já')) {
-            errorMessage = 'Você já se submeteu a este date.';
-          } else if (errorMessage.includes('creator')) {
-            errorMessage = 'Você é o criador deste date e não pode se submeter.';
-          } else if (errorMessage.includes('pending')) {
-            errorMessage = 'Já existem muitas solicitações pendentes para este date.';
-          }
-        } else if (response.data?.status === 400) {
-          errorMessage = 'Dados inválidos. Verifique as informações e tente novamente.';
-        } else if (response.data?.status === 401) {
-          errorMessage = 'Não autorizado. Faça login novamente.';
-        } else if (response.data?.status === 404) {
-          errorMessage = 'Date não encontrado.';
-        } else if (response.data?.status === 403) {
-          errorMessage = 'Você não tem permissão para esta ação.';
-        }
-
-        Alert.alert(
-          'Erro ao enviar submissão',
-          errorMessage,
-          [
-            { 
-              text: 'Entendi', 
-              style: 'cancel' 
-            },
-            ...(response.data?.status === 409 && errorMessage.includes('cheio') ? [] : [
-              {
-                text: 'Tentar novamente',
-                onPress: () => handleSubmitToDate()
-              }
-            ])
-          ]
-        );
+        Alert.alert('Erro', response.error);
       }
     } catch (error) {
-      console.error('Erro ao submeter:', error);
-      
-      Alert.alert(
-        'Erro de conexão',
-        'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
-        [
-          { text: 'OK', style: 'cancel' },
-          { 
-            text: 'Tentar novamente', 
-            onPress: () => handleSubmitToDate()
-          }
-        ]
-      );
+      Alert.alert('Erro', 'Falha na conexão');
     } finally {
       setSubmitting(false);
     }
   };
-
+  
   const handleCancelSubmission = async () => {
-    if (!user?.id || !selectedDate) return;
-
+    if (!user?.id || !date?.id) return;
+    
     Alert.alert(
       'Cancelar submissão',
-      'Tem certeza que deseja cancelar sua submissão? Você poderá se inscrever novamente se houver vagas.',
+      'Tem certeza que deseja cancelar sua submissão?',
       [
         { text: 'Não', style: 'cancel' },
         {
-          text: 'Sim, cancelar',
+          text: 'Sim',
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await apiService.cancelSubmission(
-                selectedDate.id,
-                user.id
-              );
-
+              const response = await apiService.cancelSubmission(date.id, user.id);
               if (response.ok) {
-                Alert.alert('Sucesso', response.message || 'Submissão cancelada com sucesso');
-                
-                // Atualizar status
-                setUserSubmissionStatus({
-                  user_status: 'not_submitted',
-                  submission: null,
-                  can_submit: true
-                });
-                
-                // Recarregar dates
+                Alert.alert('Sucesso', response.message);
                 loadDates();
+                onClose();
               } else {
-                let errorMessage = response.error;
-                
-                if (response.error?.includes('accepted')) {
-                  errorMessage = 'Não é possível cancelar uma submissão que já foi aceita.';
-                } else if (response.error?.includes('not found')) {
-                  errorMessage = 'Submissão não encontrada.';
-                }
-                
-                Alert.alert('Erro', errorMessage || 'Não foi possível cancelar a submissão');
+                Alert.alert('Erro', response.error);
               }
             } catch (error) {
-              console.error('Erro ao cancelar submissão:', error);
-              Alert.alert('Erro', 'Falha na conexão. Tente novamente.');
+              Alert.alert('Erro', 'Falha na conexão');
             }
           }
         }
       ]
     );
   };
-
-  const getSubmissionButtonText = () => {
-    if (!userSubmissionStatus) return 'Carregando...';
-    
-    switch (userSubmissionStatus.user_status) {
-      case 'creator':
-        return 'Você é o criador';
-      case 'accepted':
-        return '✓ Submissão aceita';
-      case 'pending':
-        return '⏳ Submissão pendente';
-      case 'rejected':
-        return 'Submissão rejeitada';
-      default:
-        return 'Participar deste date';
-    }
-  };
-
-  const getSubmissionButtonColor = () => {
-    if (!userSubmissionStatus) return Colors.gray;
-    
-    switch (userSubmissionStatus.user_status) {
-      case 'creator':
-        return Colors.gray;
-      case 'accepted':
-        return Colors.green;
-      case 'pending':
-        return Colors.blue;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.black;
-    }
-  };
-
-  const getInterestEmoji = (interest: string) => {
-    const emojiMap: Record<string, string> = {
-      chill: '🕊️',
-      music: '🎵',
-      nature: '🌿',
-      nightlife: '🌙',
-      food: '🍴',
-      games: '🎮',
-      social: '👥',
-      adventure: '🧗',
-      romantic: '💝',
-      business: '💼',
-    };
-    return emojiMap[interest] || '✨';
-  };
-
-  const renderDateCard = (date: any) => (
-    <TouchableOpacity 
-      style={styles.dateCard}
-      onPress={() => handleOpenDateDetails(date)}
-      activeOpacity={0.95}
-    >
-      {/* Header com data e local */}
-      <View style={styles.dateHeader}>
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateBadgeText}>{date.date}</Text>
-          <Text style={styles.dateTime}>{date.time}</Text>
+  
+  const renderSubmissionItem = (submission: any) => (
+    <View key={submission.user_id} style={tw.submissionItem}>
+      <View style={tw.submissionHeader}>
+        <View style={tw.submissionUser}>
+          {submission.user_photo ? (
+            <Image source={{ uri: submission.user_photo }} style={tw.userAvatar} />
+          ) : (
+            <View style={tw.userAvatar}>
+              <Text style={tw.userAvatarText}>
+                {submission.user_name?.charAt(0) || 'U'}
+              </Text>
+            </View>
+          )}
+          <View>
+            <Text style={tw.userName}>{submission.user_name}</Text>
+            <Text style={tw.submissionDate}>
+              {new Date(submission.submitted_at).toLocaleDateString('pt-BR')}
+            </Text>
+          </View>
         </View>
-        <View style={styles.locationBadge}>
-          <Ionicons name="location" size={12} color={Colors.gray} />
-          <Text style={styles.locationText}>{date.distance} • {date.city}</Text>
+        <View style={[
+          tw.statusBadge,
+          submission.status === 'accepted' && tw.statusAccepted,
+          submission.status === 'rejected' && tw.statusRejected,
+          submission.status === 'pending' && tw.statusPending
+        ]}>
+          <Text style={tw.statusText}>
+            {submission.status === 'accepted' ? 'Aceito' :
+             submission.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
+          </Text>
         </View>
       </View>
-
-      {/* Imagem */}
-      <Image 
-        source={{ uri: date.image }} 
-        style={styles.dateImage}
-        resizeMode="cover"
-      />
-
-      {/* Conteúdo */}
-      <View style={styles.dateContent}>
-        <Text style={styles.dateTitle}>{date.title}</Text>
-        <Text style={styles.dateDescription}>{date.description}</Text>
-
-        {/* Interesses */}
-        <View style={styles.interestsRow}>
-          {date.interests.map((interest: string, index: number) => (
-            <View key={index} style={styles.interestTag}>
-              <Text style={styles.interestEmoji}>{getInterestEmoji(interest)}</Text>
-              <Text style={styles.interestText}>{interest}</Text>
-            </View>
+      
+      {submission.message && (
+        <Text style={tw.submissionMessage}>"{submission.message}"</Text>
+      )}
+      
+      {submission.status === 'pending' && userStatus?.user_status === 'creator' && (
+        <View style={tw.submissionActions}>
+          <TouchableOpacity 
+            style={[tw.actionButton, tw.acceptButton]}
+            onPress={() => handleAcceptSubmission(submission)}
+            disabled={isResponding}
+          >
+            {isResponding ? (
+              <ActivityIndicator size="small" color={Colors.white} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={16} color={Colors.white} />
+                <Text style={tw.actionButtonText}>Aceitar</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+      
+      {submission.status === 'accepted' && userStatus?.user_status === 'creator' && (
+        <TouchableOpacity 
+          style={tw.chatButton}
+          onPress={() => handleStartChat(submission)}
+        >
+          <Ionicons name="chatbubble" size={16} color={Colors.white} />
+          <Text style={tw.chatButtonText}>Iniciar conversa</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+  
+  const renderEditForm = () => (
+    <ScrollView style={tw.editForm} showsVerticalScrollIndicator={false}>
+      <Text style={tw.sectionTitle}>Editar date</Text>
+      
+      <View style={tw.formGroup}>
+        <Text style={tw.label}>Descrição *</Text>
+        <TextInput
+          style={tw.input}
+          value={editData.description}
+          onChangeText={(text) => setEditData({...editData, description: text})}
+          placeholder="Descreva seu date..."
+          multiline
+          numberOfLines={3}
+          placeholderTextColor={Colors.gray}
+        />
+      </View>
+      
+      <View style={tw.formGroup}>
+        <Text style={tw.label}>Local *</Text>
+        <TextInput
+          style={tw.input}
+          value={editData.location}
+          onChangeText={(text) => setEditData({...editData, location: text})}
+          placeholder="Onde vai ser?"
+          placeholderTextColor={Colors.gray}
+        />
+      </View>
+      
+      <View style={tw.formGroup}>
+        <Text style={tw.label}>Data e hora *</Text>
+        <TextInput
+          style={tw.input}
+          value={editData.datetime}
+          onChangeText={(text) => setEditData({...editData, datetime: text})}
+          placeholder="YYYY-MM-DDTHH:mm:ss"
+          placeholderTextColor={Colors.gray}
+        />
+        <Text style={tw.hint}>Formato: 2024-12-31T20:00:00</Text>
+      </View>
+      
+      <View style={tw.formGroup}>
+        <Text style={tw.label}>Número máximo de participantes</Text>
+        <TextInput
+          style={tw.input}
+          value={editData.max_participants.toString()}
+          onChangeText={(text) => setEditData({...editData, max_participants: parseInt(text) || 1})}
+          keyboardType="numeric"
+          placeholder="1"
+          placeholderTextColor={Colors.gray}
+        />
+      </View>
+      
+      <View style={tw.formGroup}>
+        <Text style={tw.label}>Tipo de date</Text>
+        <View style={tw.optionsRow}>
+          {['praia', 'bar', 'parque', 'cafe', 'show', 'cinema', 'restaurante', 'outro'].map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[
+                tw.optionButton,
+                editData.type === type && tw.optionButtonActive
+              ]}
+              onPress={() => setEditData({...editData, type})}
+            >
+              <Text style={[
+                tw.optionText,
+                editData.type === type && tw.optionTextActive
+              ]}>
+                {type === 'praia' ? 'Praia' :
+                 type === 'bar' ? 'Bar' :
+                 type === 'parque' ? 'Parque' :
+                 type === 'cafe' ? 'Café' :
+                 type === 'show' ? 'Show' :
+                 type === 'cinema' ? 'Cinema' :
+                 type === 'restaurante' ? 'Restaurante' : 'Outro'}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
-
-        {/* Criador e participantes */}
-        <View style={styles.peopleSection}>
-          <View style={styles.creatorInfo}>
-            <View style={styles.creatorAvatar}>
-              <Text style={styles.creatorInitial}>{date.creator.name.charAt(0)}</Text>
-            </View>
-            <View style={styles.creatorDetails}>
-              <Text style={styles.creatorName}>{date.creator.name}, {date.creator.age}</Text>
-              <Text style={styles.sharedInterests}>
-                {date.creator.sharedInterests} interesses em comum
+      </View>
+      
+      <View style={tw.formGroup}>
+        <Text style={tw.label}>Quem paga?</Text>
+        <View style={tw.optionsRow}>
+          {['both', 'creator', 'invitee'].map((payment) => (
+            <TouchableOpacity
+              key={payment}
+              style={[
+                tw.optionButton,
+                editData.payment === payment && tw.optionButtonActive
+              ]}
+              onPress={() => setEditData({...editData, payment})}
+            >
+              <Text style={[
+                tw.optionText,
+                editData.payment === payment && tw.optionTextActive
+              ]}>
+                {payment === 'both' ? 'Cada um paga' :
+                 payment === 'creator' ? 'Eu pago' : 'Convidado paga'}
               </Text>
-            </View>
-          </View>
-          
-          <View style={styles.attendeesInfo}>
-            <View style={styles.attendeesCount}>
-              <Ionicons name="people" size={14} color={Colors.gray} />
-              <Text style={styles.attendeesText}>
-                {date.attendees}/{date.maxAttendees}
-              </Text>
-            </View>
-            <Text style={styles.attendeesLabel}>participantes</Text>
-          </View>
+            </TouchableOpacity>
+          ))}
         </View>
-
-        {/* Botão para ver mais informações */}
+      </View>
+      
+      <View style={tw.formGroup}>
+        <Text style={tw.label}>Vibe do date</Text>
+        <View style={tw.optionsRow}>
+          {['friendship', 'adventure', 'romantic', 'casual'].map((tone) => (
+            <TouchableOpacity
+              key={tone}
+              style={[
+                tw.optionButton,
+                editData.tone === tone && tw.optionButtonActive
+              ]}
+              onPress={() => setEditData({...editData, tone})}
+            >
+              <Text style={[
+                tw.optionText,
+                editData.tone === tone && tw.optionTextActive
+              ]}>
+                {tone === 'friendship' ? 'Amizade' :
+                 tone === 'adventure' ? 'Aventura' :
+                 tone === 'romantic' ? 'Romântico' : 'Casual'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+      
+      <View style={tw.editActions}>
         <TouchableOpacity 
-          style={styles.viewDetailsButton}
-          onPress={() => handleOpenDateDetails(date)}
+          style={[tw.editButton, tw.cancelEditButton]}
+          onPress={() => setIsEditing(false)}
         >
-          <Text style={styles.viewDetailsButtonText}>Ver mais informações</Text>
-          <Ionicons name="chevron-forward" size={16} color={Colors.black} />
+          <Text style={tw.cancelEditText}>Cancelar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[tw.editButton, tw.saveButton]}
+          onPress={handleSaveEdit}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color={Colors.white} />
+          ) : (
+            <>
+              <Ionicons name="save" size={18} color={Colors.white} />
+              <Text style={tw.saveText}>Salvar</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </ScrollView>
   );
-
-  const renderDateDetailsModal = () => (
-    <Modal
-      visible={showDateDetails}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => {
-        setShowDateDetails(false);
-        setSubmissionMessage('');
-      }}
-    >
-      <SafeAreaView style={styles.modalContainer}>
-        {selectedDate && (
-          <>
-            {/* Header com botão de fechar */}
-            <View style={styles.modalHeader}>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={() => {
-                  setShowDateDetails(false);
-                  setSubmissionMessage('');
-                }}
-              >
-                <Ionicons name="close" size={24} color={Colors.black} />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Detalhes do rolê</Text>
-              <View style={styles.headerSpacer} />
+  
+  const renderDateInfo = () => (
+    <ScrollView style={tw.dateInfo} showsVerticalScrollIndicator={false}>
+      <View style={tw.dateHeader}>
+        <View style={tw.dateTimeBadge}>
+          <Text style={tw.dateText}>{date?.date}</Text>
+          <Text style={tw.timeText}>{date?.time}</Text>
+        </View>
+        <View style={tw.locationInfo}>
+          <Ionicons name="location" size={14} color={Colors.gray} />
+          <Text style={tw.locationDetail}>{date?.location}</Text>
+        </View>
+      </View>
+      
+      <Text style={tw.detailTitle}>{date?.title}</Text>
+      <Text style={tw.detailDescription}>{date?.description}</Text>
+      
+      <View style={tw.infoSection}>
+        <Text style={tw.sectionTitle}>📋 Informações</Text>
+        <View style={tw.infoGrid}>
+          <View style={tw.infoItem}>
+            <Ionicons name="people" size={18} color={Colors.gray} />
+            <Text style={tw.infoLabel}>Participantes:</Text>
+            <Text style={tw.infoValue}>
+              {date?.attendees + 1}/{date?.maxAttendees}
+            </Text>
+          </View>
+          <View style={tw.infoItem}>
+            <Ionicons name="cash" size={18} color={Colors.gray} />
+            <Text style={tw.infoLabel}>Pagamento:</Text>
+            <Text style={tw.infoValue}>
+              {date?.apiData?.payment === 'both' ? 'Cada um paga' :
+               date?.apiData?.payment === 'creator' ? 'Anfitrião paga' : 'Convidado paga'}
+            </Text>
+          </View>
+          <View style={tw.infoItem}>
+            <Ionicons name="calendar" size={18} color={Colors.gray} />
+            <Text style={tw.infoLabel}>Data completa:</Text>
+            <Text style={tw.infoValue}>
+              {new Date(date?.apiData?.datetime).toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
+          </View>
+          <View style={tw.infoItem}>
+            <Ionicons name="flash" size={18} color={Colors.gray} />
+            <Text style={tw.infoLabel}>Vibe:</Text>
+            <Text style={tw.infoValue}>
+              {date?.apiData?.tone === 'friendship' ? 'Amizade' :
+               date?.apiData?.tone === 'adventure' ? 'Aventura' :
+               date?.apiData?.tone === 'romantic' ? 'Romântico' : 'Casual'}
+            </Text>
+          </View>
+        </View>
+      </View>
+      
+      {userStatus?.user_status === 'creator' && (
+        <View style={tw.submissionsSection}>
+          <View style={tw.sectionHeader}>
+            <Text style={tw.sectionTitle}>👥 Submissões</Text>
+            <Text style={tw.sectionSubtitle}>
+              {submissions.filter(s => s.status === 'pending').length} pendente(s)
+            </Text>
+          </View>
+          
+          {loadingSubmissions ? (
+            <ActivityIndicator size="small" color={Colors.black} />
+          ) : submissions.length > 0 ? (
+            <View style={tw.submissionsList}>
+              {submissions.map(renderSubmissionItem)}
             </View>
-
-            <ScrollView 
-              style={styles.modalContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Imagem */}
-              <Image 
-                source={{ uri: selectedDate.image }} 
-                style={styles.detailImage}
-                resizeMode="cover"
-              />
-
-              {/* Informações principais */}
-              <View style={styles.detailContent}>
-                <View style={styles.detailHeader}>
-                  <View style={styles.detailDateBadge}>
-                    <Text style={styles.detailDateText}>{selectedDate.date}</Text>
-                    <Text style={styles.detailTimeText}>{selectedDate.time}</Text>
-                  </View>
-                  <View style={styles.detailLocation}>
-                    <Ionicons name="location" size={14} color={Colors.gray} />
-                    <Text style={styles.detailLocationText}>{selectedDate.location}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.detailTitle}>{selectedDate.title}</Text>
-                <Text style={styles.detailDescription}>{selectedDate.description}</Text>
-
-                {/* Informações detalhadas */}
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoSectionTitle}>Sobre este rolê</Text>
-                  
-                  <View style={styles.infoRow}>
-                    <Ionicons name="people" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Participantes:</Text>
-                    <Text style={styles.infoValue}>
-                      {selectedDate.attendees}/{selectedDate.maxAttendees} pessoas
-                      {selectedDate.availableSlots > 0 && (
-                        <Text style={{ color: Colors.green, fontWeight: '600' }}>
-                          {' '}({selectedDate.availableSlots} vaga{selectedDate.availableSlots !== 1 ? 's' : ''} disponível{selectedDate.availableSlots !== 1 ? 's' : ''})
-                        </Text>
-                      )}
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="cash" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Pagamento:</Text>
-                    <Text style={styles.infoValue}>
-                      {selectedDate.apiData?.payment === 'creator' ? 'Anfitrião paga' :
-                       selectedDate.apiData?.payment === 'invitee' ? 'Convidado paga' :
-                       'Cada um paga o seu'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="flag" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Vibe:</Text>
-                    <Text style={styles.infoValue}>{selectedDate.vibe}</Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="calendar" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Data completa:</Text>
-                    <Text style={styles.infoValue}>
-                      {new Date(selectedDate.apiData?.datetime).toLocaleDateString('pt-BR', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Interesses */}
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoSectionTitle}>Interesses do rolê</Text>
-                  <View style={styles.detailInterestsRow}>
-                    {selectedDate.interests.map((interest: string, index: number) => (
-                      <View key={index} style={styles.detailInterestTag}>
-                        <Text style={styles.detailInterestEmoji}>{getInterestEmoji(interest)}</Text>
-                        <Text style={styles.detailInterestText}>{interest}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Criador */}
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoSectionTitle}>Organizador</Text>
-                  <View style={styles.creatorDetail}>
-                    <View style={styles.creatorDetailAvatar}>
-                      <Text style={styles.creatorDetailInitial}>
-                        {selectedDate.creator.name.charAt(0)}
-                      </Text>
-                    </View>
-                    <View style={styles.creatorDetailInfo}>
-                      <Text style={styles.creatorDetailName}>
-                        {selectedDate.creator.name}, {selectedDate.creator.age}
-                      </Text>
-                      <Text style={styles.creatorDetailShared}>
-                        {selectedDate.creator.sharedInterests} interesses em comum com você
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Área de submissão */}
-                {userSubmissionStatus && userSubmissionStatus.user_status !== 'creator' && (
-                  <View style={styles.infoSection}>
-                    <Text style={styles.infoSectionTitle}>Participar deste rolê</Text>
-                    
-                    {/* Mensagem de status */}
-                    {userSubmissionStatus.user_status === 'not_submitted' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(43, 43, 43, 0.05)' }]}>
-                        <Ionicons name="information-circle" size={20} color={Colors.blue} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={styles.statusMessageText}>
-                            Este date tem {selectedDate.availableSlots} vaga{selectedDate.availableSlots !== 1 ? 's' : ''} disponível{selectedDate.availableSlots !== 1 ? 's' : ''}.
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'not_submitted' && (
-                      <View style={styles.submissionForm}>
-                        <Text style={styles.submissionLabel}>
-                          Mensagem para o organizador (opcional)
-                        </Text>
-                        <TextInput
-                          style={styles.submissionInput}
-                          placeholder="Diga porque quer participar..."
-                          value={submissionMessage}
-                          onChangeText={setSubmissionMessage}
-                          multiline
-                          numberOfLines={3}
-                          maxLength={200}
-                          placeholderTextColor={Colors.gray}
-                        />
-                        <Text style={styles.submissionCharCount}>
-                          {submissionMessage.length}/200 caracteres
-                        </Text>
-                        
-                        {/* Dicas de submissão */}
-                        <View style={styles.tipsContainer}>
-                          <Text style={styles.tipsTitle}>💡 Dicas para sua submissão:</Text>
-                          <Text style={styles.tipsText}>
-                            • Seja educado e respeitoso{'\n'}
-                            • Explique seus interesses em comum{'\n'}
-                            • Mostre entusiasmo genuíno{'\n'}
-                            • Seja breve e direto
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'accepted' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(95, 240, 169, 0.1)' }]}>
-                        <Ionicons name="checkmark-circle" size={24} color={Colors.green} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={[styles.statusMessageText, { color: Colors.green }]}>
-                            Parabéns! Sua submissão foi aceita.
-                          </Text>
-                          <Text style={styles.statusMessageSubtext}>
-                            Você está confirmado para este date! O organizador pode entrar em contato com mais detalhes.
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'pending' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(0, 122, 255, 0.1)' }]}>
-                        <Ionicons name="time" size={24} color={Colors.blue} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={[styles.statusMessageText, { color: Colors.blue }]}>
-                            Submissão pendente
-                          </Text>
-                          <Text style={styles.statusMessageSubtext}>
-                            Aguardando aprovação do organizador. Você será notificado quando houver uma resposta.
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'rejected' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
-                        <Ionicons name="close-circle" size={24} color={Colors.red} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={[styles.statusMessageText, { color: Colors.red }]}>
-                            Submissão rejeitada
-                          </Text>
-                          <Text style={styles.statusMessageSubtext}>
-                            Infelizmente sua submissão foi rejeitada. Não desanime, há outros rolês disponíveis!
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                )}
+          ) : (
+            <Text style={tw.emptySubmissions}>Nenhuma submissão ainda</Text>
+          )}
+        </View>
+      )}
+      
+      {userStatus?.user_status !== 'creator' && (
+        <View style={tw.participationSection}>
+          <Text style={tw.sectionTitle}>Participar deste date</Text>
+          
+          {userStatus?.user_status === 'accepted' ? (
+            <View style={tw.statusCardAccepted}>
+              <Ionicons name="checkmark-circle" size={24} color={Colors.green} />
+              <View style={tw.statusContent}>
+                <Text style={tw.statusTitleAccepted}>🎉 Você foi aceito!</Text>
+                <Text style={tw.statusMessage}>
+                  Parabéns! Sua submissão foi aceita. Você está confirmado para este date.
+                  O organizador pode entrar em contato com mais detalhes.
+                </Text>
+                <TouchableOpacity 
+                  style={tw.chatButton}
+                  onPress={() => handleStartChat({ user_id: user?.id, user_name: user?.nome })}
+                >
+                  <Ionicons name="chatbubble" size={16} color={Colors.white} />
+                  <Text style={tw.chatButtonText}>Conversar com o host</Text>
+                </TouchableOpacity>
               </View>
-            </ScrollView>
-
-            {/* Botão de ação */}
-            <View style={styles.modalFooter}>
-              {loadingSubmission ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={Colors.black} />
-                  <Text style={styles.loadingText}>Verificando status...</Text>
-                </View>
-              ) : (
-                <>
-                  {userSubmissionStatus?.user_status === 'pending' && (
-                    <TouchableOpacity 
-                      style={[styles.actionButton, { backgroundColor: Colors.red }]}
-                      onPress={handleCancelSubmission}
-                    >
-                      <Ionicons name="close" size={20} color={Colors.white} />
-                      <Text style={[styles.actionButtonText, { color: Colors.white }]}>
-                        Cancelar submissão
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {(userSubmissionStatus?.user_status === 'not_submitted' || 
-                    userSubmissionStatus?.user_status === 'rejected') && (
-                    <TouchableOpacity 
-                      style={[
-                        styles.actionButton, 
-                        { backgroundColor: getSubmissionButtonColor() },
-                        submitting && styles.actionButtonDisabled
-                      ]}
-                      onPress={handleSubmitToDate}
-                      disabled={submitting || !userSubmissionStatus?.can_submit}
-                    >
-                      {submitting ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons name="person-add" size={20} color={Colors.white} />
-                          <Text style={[styles.actionButtonText, { color: Colors.white }]}>
-                            {getSubmissionButtonText()}
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {userSubmissionStatus?.user_status === 'accepted' && (
-                    <TouchableOpacity 
-                      style={[styles.actionButton, { backgroundColor: Colors.green }]}
-                      onPress={() => {
-                        Alert.alert('Informação', 'Você já está confirmado neste date!');
-                      }}
-                    >
-                      <Ionicons name="checkmark" size={20} color={Colors.white} />
-                      <Text style={[styles.actionButtonText, { color: Colors.white }]}>
-                        ✓ Confirmado
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {userSubmissionStatus?.user_status === 'creator' && (
-                    <View style={styles.creatorActions}>
-                      <TouchableOpacity 
-                        style={[styles.creatorButton, { backgroundColor: Colors.gray }]}
-                        onPress={() => {
-                          Alert.alert('Em breve', 'Funcionalidade de edição em breve!');
-                        }}
-                      >
-                        <Text style={styles.creatorButtonText}>Editar date</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.creatorButton, { backgroundColor: Colors.black }]}
-                        onPress={async () => {
-                          try {
-                            const response = await apiService.getDateSubmissions(
-                              selectedDate.id,
-                              user?.id || ''
-                            );
-                            
-                            if (response.ok) {
-                              Alert.alert(
-                                'Submissões',
-                                `Total: ${response.counters?.total || 0}\n` +
-                                `Pendentes: ${response.counters?.pending || 0}\n` +
-                                `Aceitas: ${response.counters?.accepted || 0}\n` +
-                                `Rejeitadas: ${response.counters?.rejected || 0}`
-                              );
-                            } else {
-                              Alert.alert('Erro', 'Não foi possível carregar as submissões');
-                            }
-                          } catch (error) {
-                            Alert.alert('Erro', 'Falha na conexão');
-                          }
-                        }}
-                      >
-                        <Text style={[styles.creatorButtonText, { color: Colors.white }]}>
-                          Ver submissões
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </>
-              )}
             </View>
-          </>
+          ) : userStatus?.user_status === 'pending' ? (
+            <View style={tw.statusCardPending}>
+              <Ionicons name="time" size={24} color={Colors.blue} />
+              <View style={tw.statusContent}>
+                <Text style={tw.statusTitlePending}>⏳ Aguardando aprovação</Text>
+                <Text style={tw.statusMessage}>
+                  Sua submissão está pendente. O organizador do date irá analisar e você será notificado quando houver uma resposta.
+                  Enquanto isso, você pode cancelar sua submissão se mudar de ideia.
+                </Text>
+                <TouchableOpacity 
+                  style={tw.cancelSubmissionButton}
+                  onPress={handleCancelSubmission}
+                >
+                  <Ionicons name="close" size={16} color={Colors.red} />
+                  <Text style={tw.cancelSubmissionText}>Cancelar submissão</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : userStatus?.user_status === 'rejected' ? (
+            <View style={tw.statusCardRejected}>
+              <Ionicons name="close-circle" size={24} color={Colors.red} />
+              <View style={tw.statusContent}>
+                <Text style={tw.statusTitleRejected}>❌ Submissão rejeitada</Text>
+                <Text style={tw.statusMessage}>
+                  Infelizmente sua submissão foi rejeitada. Não desanime! 
+                  Aproveite para explorar outros dates disponíveis.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={tw.submissionForm}>
+              <Text style={tw.submissionHint}>
+                Este date tem {date?.availableSlots} vaga{date?.availableSlots !== 1 ? 's' : ''} disponível{date?.availableSlots !== 1 ? 's' : ''}.
+              </Text>
+              
+              <TextInput
+                style={tw.messageInput}
+                placeholder="Conte ao organizador porque você quer participar deste date..."
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                numberOfLines={4}
+                maxLength={300}
+                placeholderTextColor={Colors.gray}
+              />
+              <Text style={tw.charCount}>{message.length}/300</Text>
+              
+              <TouchableOpacity 
+                style={tw.submitButton}
+                onPress={handleSubmitToDate}
+                disabled={!message.trim() || submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="send" size={18} color={Colors.white} />
+                    <Text style={tw.submitButtonText}>Enviar submissão</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+    </ScrollView>
+  );
+  
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      transparent={false}
+    >
+      <SafeAreaView style={tw.modalContainer}>
+        <View style={tw.modalHeader}>
+          <TouchableOpacity onPress={onClose} style={tw.closeButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.black} />
+          </TouchableOpacity>
+          <Text style={tw.modalTitle}>
+            {isEditing ? 'Editar date' : 'Detalhes do date'}
+          </Text>
+          
+          {userStatus?.user_status === 'creator' && !isEditing && (
+            <TouchableOpacity 
+              style={tw.editHeaderButton}
+              onPress={() => setIsEditing(true)}
+            >
+              <Ionicons name="create" size={20} color={Colors.black} />
+              <Text style={tw.editHeaderText}>Editar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {isEditing ? renderEditForm() : renderDateInfo()}
+        
+        {showChatPrompt && acceptedUser && (
+          <View style={tw.chatPrompt}>
+            <View style={tw.chatPromptContent}>
+              <Ionicons name="chatbubble-ellipses" size={24} color={Colors.black} />
+              <View style={tw.chatPromptTextContainer}>
+                <Text style={tw.chatPromptTitle}>🎉 {acceptedUser.user_name} aceito!</Text>
+                <Text style={tw.chatPromptMessage}>
+                  Inicie uma conversa para combinar os detalhes do date.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={tw.chatPromptButton}
+              onPress={() => handleStartChat(acceptedUser)}
+            >
+              <Ionicons name="chatbubble" size={18} color={Colors.white} />
+              <Text style={tw.chatPromptButtonText}>Conversar agora</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </SafeAreaView>
     </Modal>
   );
+};
 
-  if (authLoading || isChecking) {
+// O resto do código permanece EXATAMENTE IGUAL...
+
+// Componente principal
+export default function HomeScreen() {
+  const { isAuthenticated, user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [dates, setDates] = useState<any[]>([]);
+  const [filteredDates, setFilteredDates] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState<any>(null);
+  const [showDateDetails, setShowDateDetails] = useState(false);
+  const [userStatus, setUserStatus] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'submitted' | 'accepted'>('all');
+  const [filters, setFilters] = useState({
+    city: '',
+    type: '',
+    showFilters: false
+  });
+  const [dateTypes] = useState([
+    'praia', 'bar', 'parque', 'cafe', 'show', 'cinema', 'restaurante', 'outro'
+  ]);
+  
+  const loadDates = useCallback(async () => {
+    if (!isAuthenticated) return;
+    
+    setLoading(true);
+    try {
+      const response = await apiService.getDates();
+      if (response.ok && response.dates) {
+        const datesWithStatus = await Promise.all(
+          response.dates.map(async (apiDate: any, index: number) => {
+            let userStatus = 'not_submitted';
+            let mySubmission = null;
+            
+            if (user?.id) {
+              try {
+                const statusResponse = await apiService.getMySubmission(apiDate.id, user.id);
+                if (statusResponse.ok) {
+                  userStatus = statusResponse.user_status;
+                  mySubmission = statusResponse.submission;
+                }
+              } catch (error) {
+                console.error('Erro ao verificar status:', error);
+              }
+            }
+            
+            const city = apiDate.location?.split(',')[0]?.trim() || 'Local indefinido';
+            const date = new Date(apiDate.datetime);
+            
+            return {
+              id: apiDate.id || `temp-${index}`,
+              title: apiDate.description?.split('.')[0]?.substring(0, 30) || apiDate.type || 'Date sem título',
+              description: apiDate.description || '',
+              image: getImageForType(apiDate.type),
+              type: apiDate.type,
+              date: formatDate(apiDate.datetime),
+              time: date.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              }),
+              location: apiDate.location,
+              city: city,
+              attendees: countAcceptedSubmissions(apiDate.submisoes || {}),
+              maxAttendees: apiDate.max_participants || 1,
+              availableSlots: calculateAvailableSlots(apiDate),
+              userStatus,
+              mySubmission,
+              apiData: apiDate,
+            };
+          })
+        );
+        
+        setDates(datesWithStatus);
+        filterDates(datesWithStatus, activeTab, filters);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dates:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [isAuthenticated, user?.id]);
+  
+  const filterDates = useCallback((datesList: any[], tab: string, filterOptions: typeof filters) => {
+    let filtered = [...datesList];
+    
+    // Aplicar filtro da aba
+    if (tab === 'submitted') {
+      filtered = filtered.filter(date => 
+        date.userStatus === 'pending' || date.userStatus === 'accepted' || date.userStatus === 'rejected'
+      );
+    } else if (tab === 'accepted') {
+      filtered = filtered.filter(date => date.userStatus === 'accepted');
+    }
+    
+    // Aplicar filtros de cidade e tipo
+    if (filterOptions.city) {
+      filtered = filtered.filter(date => 
+        date.city.toLowerCase().includes(filterOptions.city.toLowerCase())
+      );
+    }
+    
+    if (filterOptions.type) {
+      filtered = filtered.filter(date => 
+        date.type.toLowerCase().includes(filterOptions.type.toLowerCase())
+      );
+    }
+    
+    setFilteredDates(filtered);
+  }, []);
+  
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadDates();
+    }
+  }, [isAuthenticated]);
+  
+  useEffect(() => {
+    filterDates(dates, activeTab, filters);
+  }, [activeTab, filters, dates]);
+  
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadDates();
+  }, [loadDates]);
+  
+  const openDateDetails = useCallback(async (date: any) => {
+    setSelectedDate(date);
+    if (user?.id) {
+      try {
+        const response = await apiService.getMySubmission(date.id, user.id);
+        if (response.ok) {
+          setUserStatus(response);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar status:', error);
+      }
+    }
+    setShowDateDetails(true);
+  }, [user]);
+  
+  const clearFilters = () => {
+    setFilters({
+      city: '',
+      type: '',
+      showFilters: false
+    });
+  };
+  
+  if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Conectando...</Text>
+      <View style={tw.loadingScreen}>
+        <ActivityIndicator size="large" color={Colors.black} />
+        <Text style={tw.loadingText}>Carregando rolês...</Text>
       </View>
     );
   }
-
-  if (!isAuthenticated) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-      </View>
-    );
-  }
-
-  if (loadingDates && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando rolês...</Text>
-      </View>
-    );
-  }
-
+  
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>psique</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.filterButton}
-            onPress={() => setShowFilters(true)}
-          >
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFilters.length}</Text>
-            </View>
-            <Ionicons name="filter" size={22} color={Colors.black} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.profileButton}
-            onPress={() => router.push('/profile')}
-          >
-            <View style={styles.profileAvatar}>
-              <Text style={styles.profileInitial}>
+    <SafeAreaView style={tw.container}>
+      <View style={tw.header}>
+        <Text style={tw.logo}>psique</Text>
+        <TouchableOpacity 
+          style={tw.profileButton}
+          onPress={() => router.push('/profile')}
+        >
+          {user?.foto_perfil ? (
+            <Image source={{ uri: user.foto_perfil }} style={tw.profileAvatarImage} />
+          ) : (
+            <View style={tw.profileAvatar}>
+              <Text style={tw.profileInitial}>
                 {user?.nome?.charAt(0).toUpperCase() || 'U'}
               </Text>
             </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Barra de busca */}
-      <TouchableOpacity 
-        style={styles.searchBar}
-        onPress={() => setShowFilters(true)}
-      >
-        <Ionicons name="search" size={18} color={Colors.gray} />
-        <Text style={styles.searchPlaceholder}>
-          Buscar rolês por interesse, local, vibe...
-        </Text>
-      </TouchableOpacity>
-
-      {/* Filtros ativos */}
-      {activeFilters.length > 0 && (
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.activeFiltersContainer}
-          contentContainerStyle={styles.activeFiltersContent}
-        >
-          <TouchableOpacity 
-            style={styles.clearAllButton}
-            onPress={clearFilters}
-          >
-            <Ionicons name="close" size={14} color={Colors.gray} />
-            <Text style={styles.clearAllText}>Limpar</Text>
-          </TouchableOpacity>
-          {activeFilters.slice(0, 5).map(filter => (
-            <View key={filter} style={styles.activeFilter}>
-              <Text style={styles.activeFilterText}>{filter}</Text>
-              <TouchableOpacity onPress={() => toggleFilter(filter)}>
-                <Ionicons name="close" size={14} color={Colors.gray} />
-              </TouchableOpacity>
-            </View>
-          ))}
-          {activeFilters.length > 5 && (
-            <View style={styles.moreFilters}>
-              <Text style={styles.moreFiltersText}>+{activeFilters.length - 5}</Text>
-            </View>
           )}
-        </ScrollView>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Tabs */}
+      <View style={tw.tabsContainer}>
+        <TouchableOpacity 
+          style={[tw.tab, activeTab === 'all' && tw.tabActive]}
+          onPress={() => setActiveTab('all')}
+        >
+          <Text style={[tw.tabText, activeTab === 'all' && tw.tabTextActive]}>
+            Todos
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[tw.tab, activeTab === 'submitted' && tw.tabActive]}
+          onPress={() => setActiveTab('submitted')}
+        >
+          <Ionicons 
+            name="paper-plane" 
+            size={16} 
+            color={activeTab === 'submitted' ? Colors.black : Colors.gray} 
+          />
+          <Text style={[tw.tabText, activeTab === 'submitted' && tw.tabTextActive]}>
+            Submetidos
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[tw.tab, activeTab === 'accepted' && tw.tabActive]}
+          onPress={() => setActiveTab('accepted')}
+        >
+          <Ionicons 
+            name="checkmark-circle" 
+            size={16} 
+            color={activeTab === 'accepted' ? Colors.black : Colors.gray} 
+          />
+          <Text style={[tw.tabText, activeTab === 'accepted' && tw.tabTextActive]}>
+            Aceitos
+          </Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Filtros */}
+      <View style={tw.filterSection}>
+        <TouchableOpacity 
+          style={tw.filterToggle}
+          onPress={() => setFilters(prev => ({ ...prev, showFilters: !prev.showFilters }))}
+        >
+          <Ionicons name="filter" size={18} color={Colors.black} />
+          <Text style={tw.filterToggleText}>
+            {filters.showFilters ? 'Ocultar filtros' : 'Filtrar'}
+          </Text>
+        </TouchableOpacity>
+        
+        {(filters.city || filters.type) && (
+          <TouchableOpacity style={tw.clearFilterButton} onPress={clearFilters}>
+            <Text style={tw.clearFilterText}>Limpar</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      {filters.showFilters && (
+        <View style={tw.filtersContainer}>
+          <View style={tw.filterInputContainer}>
+            <Ionicons name="location" size={18} color={Colors.gray} />
+            <TextInput
+              style={tw.filterInput}
+              placeholder="Cidade..."
+              value={filters.city}
+              onChangeText={(text) => setFilters(prev => ({ ...prev, city: text }))}
+              placeholderTextColor={Colors.gray}
+            />
+          </View>
+          
+          <View style={tw.filterInputContainer}>
+            <Ionicons name="pricetag" size={18} color={Colors.gray} />
+            <TextInput
+              style={tw.filterInput}
+              placeholder="Tipo (praia, bar, etc)..."
+              value={filters.type}
+              onChangeText={(text) => setFilters(prev => ({ ...prev, type: text }))}
+              placeholderTextColor={Colors.gray}
+            />
+          </View>
+          
+          <View style={tw.typeChips}>
+            {dateTypes.map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  tw.typeChip,
+                  filters.type === type && tw.typeChipActive
+                ]}
+                onPress={() => setFilters(prev => ({ 
+                  ...prev, 
+                  type: prev.type === type ? '' : type 
+                }))}
+              >
+                <Text style={[
+                  tw.typeChipText,
+                  filters.type === type && tw.typeChipTextActive
+                ]}>
+                  {type === 'praia' ? 'Praia' :
+                   type === 'bar' ? 'Bar' :
+                   type === 'parque' ? 'Parque' :
+                   type === 'cafe' ? 'Café' :
+                   type === 'show' ? 'Show' :
+                   type === 'cinema' ? 'Cinema' :
+                   type === 'restaurante' ? 'Restaurante' : 'Outro'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       )}
-
-      {/* Feed */}
-      <ScrollView 
-        style={styles.feedContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.feedContent}
+      
+      <ScrollView
+        style={tw.feed}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
+          <RefreshControl 
+            refreshing={refreshing} 
             onRefresh={onRefresh}
-            colors={[Colors.green]}
-            tintColor={Colors.green}
+            tintColor={Colors.black}
+            colors={[Colors.black]}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Saudação */}
-        <View style={styles.greetingSection}>
-          <Text style={styles.greeting}>
-            Olá, {user?.nome?.split(' ')[0] || 'pessoa'}.
-          </Text>
-          <Text style={styles.subGreeting}>
-            Rolês reais perto de você.
-          </Text>
+        <View style={tw.greeting}>
+          <Text style={tw.greetingText}>Olá, {user?.nome?.split(' ')[0] || 'amigo'} 👋</Text>
+          <Text style={tw.greetingSub}>Encontre rolês com vibe real</Text>
         </View>
-
-        {/* Quick actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity 
-            style={styles.quickAction}
-            onPress={() => router.push('/create-date')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Ionicons name="add" size={24} color={Colors.black} />
-            </View>
-            <Text style={styles.quickActionText}>Criar rolê</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.quickAction}
-            onPress={() => router.push('/connections')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Ionicons name="heart" size={20} color={Colors.black} />
-            </View>
-            <Text style={styles.quickActionText}>Conexões</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.quickAction}
-            onPress={() => router.push('/saved')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Ionicons name="bookmark" size={20} color={Colors.black} />
-            </View>
-            <Text style={styles.quickActionText}>Salvos</Text>
-          </TouchableOpacity>
+        
+        <View style={tw.quickActions}>
+          <QuickAction 
+            icon="add-circle" 
+            label="Criar" 
+            onPress={() => router.push('/create-date')} 
+          />
+          <QuickAction 
+            icon="heart" 
+            label="Conexões" 
+            onPress={() => router.push('/connections')} 
+          />
+          <QuickAction 
+            icon="calendar" 
+            label="Meus dates" 
+            onPress={() => router.push('/my-dates')} 
+          />
         </View>
-
-        {/* Dates */}
-        <View style={styles.datesSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Rolês próximos</Text>
-            <Text style={styles.sectionSubtitle}>
-              {dates.length} encontros disponíveis
+        
+        <View style={tw.datesSection}>
+          <View style={tw.sectionHeader}>
+            <Text style={tw.sectionTitle}>
+              {activeTab === 'all' && 'Rolês próximos'}
+              {activeTab === 'submitted' && 'Meus submits'}
+              {activeTab === 'accepted' && 'Dates confirmados'}
+            </Text>
+            <Text style={tw.sectionSubtitle}>
+              {filteredDates.length} encontro{filteredDates.length !== 1 ? 's' : ''}
             </Text>
           </View>
-
-          <View style={styles.datesList}>
-            {dates.length > 0 ? (
-              dates.map(date => (
-                <View key={date.id} style={styles.dateItem}>
-                  {renderDateCard(date)}
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="calendar-outline" size={60} color={Colors.gray} />
-                <Text style={styles.emptyStateTitle}>Nenhum rolê encontrado</Text>
-                <Text style={styles.emptyStateText}>
-                  Seja o primeiro a criar um rolê na sua área!
-                </Text>
+          
+          {filteredDates.length > 0 ? (
+            filteredDates.map((date) => (
+              <DateCard 
+                key={date.id} 
+                date={date} 
+                onPress={() => openDateDetails(date)} 
+              />
+            ))
+          ) : (
+            <View style={tw.emptyState}>
+              <Ionicons 
+                name={
+                  activeTab === 'submitted' ? 'paper-plane-outline' :
+                  activeTab === 'accepted' ? 'checkmark-circle-outline' :
+                  'calendar-outline'
+                } 
+                size={60} 
+                color={Colors.gray} 
+              />
+              <Text style={tw.emptyTitle}>
+                {activeTab === 'submitted' ? 'Nenhum submit ainda' :
+                 activeTab === 'accepted' ? 'Nenhum date aceito' :
+                 'Nenhum rolê encontrado'}
+              </Text>
+              <Text style={tw.emptyText}>
+                {activeTab === 'submitted' ? 'Encontre um rolê legal e manda ver!' :
+                 activeTab === 'accepted' ? 'Suba em mais dates e aguarde as confirmações' :
+                 'Seja o primeiro a criar um rolê na sua área!'}
+              </Text>
+              {activeTab === 'all' && (
                 <TouchableOpacity 
-                  style={styles.createFirstButton}
+                  style={tw.createButton}
                   onPress={() => router.push('/create-date')}
                 >
-                  <Text style={styles.createFirstButtonText}>Criar meu primeiro rolê</Text>
+                  <Text style={tw.createButtonText}>Criar meu rolê</Text>
                 </TouchableOpacity>
-              </View>
-            )}
-          </View>
+              )}
+            </View>
+          )}
         </View>
-
-        <View style={styles.footerSpacer} />
+        
+        <View style={tw.bottomSpacer} />
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push('/')}
-        >
-          <Ionicons name="home" size={22} color={Colors.black} />
-          <Text style={styles.navLabelActive}>Início</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push('/explore')}
-        >
-          <Ionicons name="compass" size={22} color={Colors.gray} />
-          <Text style={styles.navLabel}>Explorar</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push('/create-date')}
-        >
-          <View style={styles.createButton}>
-            <Ionicons name="add" size={28} color={Colors.white} />
-          </View>
-          <Text style={styles.navLabel}>Criar</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push('/messages')}
-        >
-          <Ionicons name="chatbubble" size={20} color={Colors.gray} />
-          <Text style={styles.navLabel}>Chats</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push('/profile')}
-        >
-          <Ionicons name="person" size={22} color={Colors.gray} />
-          <Text style={styles.navLabel}>Perfil</Text>
-        </TouchableOpacity>
+      
+      <View style={tw.bottomNav}>
+        <NavItem icon="home" label="Início" active />
+        <NavItem icon="compass" label="Explorar" onPress={() => router.push('/explore')} />
+        <NavItem icon="chatbubble" label="Chat" onPress={() => router.push('/chat')} />
+        <NavItem icon="person" label="Perfil" onPress={() => router.push('/profile')} />
       </View>
-
-      {/* Modal de detalhes do date */}
-      {renderDateDetailsModal()}
+      
+      <DateDetailsModal
+        visible={showDateDetails}
+        date={selectedDate}
+        userStatus={userStatus}
+        onClose={() => {
+          setShowDateDetails(false);
+          setSelectedDate(null);
+          setUserStatus(null);
+        }}
+        loadDates={loadDates}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+// Componentes auxiliares
+const QuickAction = ({ icon, label, onPress }: any) => (
+  <TouchableOpacity style={tw.quickAction} onPress={onPress}>
+    <View style={tw.quickIcon}>
+      <Ionicons name={icon} size={24} color={Colors.white} />
+    </View>
+    <Text style={tw.quickLabel}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const NavItem = ({ icon, label, active, onPress }: any) => (
+  <TouchableOpacity style={tw.navItem} onPress={onPress}>
+    <View style={[tw.navIconContainer, active && tw.navIconContainerActive]}>
+      <Ionicons 
+        name={icon} 
+        size={22} 
+        color={active ? Colors.black : Colors.gray} 
+      />
+    </View>
+    <Text style={[tw.navLabel, active && tw.navLabelActive]}>
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
+
+// Funções auxiliares
+const getImageForType = (type: string) => {
+  const imageMap: Record<string, string> = {
+    praia: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
+    bar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4',
+    parque: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
+    cafe: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085',
+    show: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f',
+    cinema: 'https://images.unsplash.com/photo-1489599809516-9827b6d1cf13',
+    restaurante: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0',
+    outro: 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e',
+  };
+  return imageMap[type?.toLowerCase()] || imageMap.outro;
+};
+
+const getIconForType = (type: string) => {
+  const iconMap: Record<string, string> = {
+    praia: 'water',
+    bar: 'wine',
+    parque: 'leaf',
+    cafe: 'cafe',
+    show: 'musical-notes',
+    cinema: 'film',
+    restaurante: 'restaurant',
+    outro: 'location',
+  };
+  return iconMap[type?.toLowerCase()] || iconMap.outro;
+};
+
+const formatDate = (datetime: string) => {
+  if (!datetime) return 'EM BREVE';
+  
+  const date = new Date(datetime);
+  const now = new Date();
+  const diffTime = date.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'HOJE';
+  if (diffDays === 1) return 'AMANHÃ';
+  if (diffDays <= 7) {
+    const days = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    return days[date.getDay()];
+  }
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase();
+};
+
+const countAcceptedSubmissions = (submisoes: any) => {
+  if (!submisoes || typeof submisoes !== 'object') return 0;
+  return Object.values(submisoes).filter((s: any) => s?.status === 'accepted').length;
+};
+
+const calculateAvailableSlots = (date: any) => {
+  if (!date || !date.apiData) return 0;
+  
+  const submisoes = date.apiData.submisoes || {};
+  
+  // Contar quantos estão aceitos
+  const acceptedCount = Object.values(submisoes)
+    .filter((s: any) => s?.status === 'accepted')
+    .length;
+  
+  // O criador conta como 1 participante
+  const totalOccupied = acceptedCount + 1;
+  
+  const maxParticipants = Number(date.apiData.max_participants) || 1;
+  
+  return Math.max(0, maxParticipants - totalOccupied);
+};
+
+// NOVA FUNÇÃO SIMPLES DE ACEITAR (com atualização automática)
+const handleAcceptSubmission = async (submission: any) => {
+  if (!user?.id || !date?.id) {
+    Alert.alert('Erro', 'Usuário ou date não encontrado');
+    return;
+  }
+
+  setIsResponding(true);
+  
+  try {
+    const response = await apiService.respondToSubmission(
+      date.id,
+      {
+        creator_user_id: user.id,
+        requester_user_id: submission.user_id,
+        accept: true,
+        reason: 'Bem-vindo ao date!'
+      }
+    );
+    
+    console.log('Resposta da API:', response);
+    
+    if (response.ok) {
+      // ATUALIZAÇÃO IMEDIATA DO ESTADO LOCAL
+      setSubmissions(prevSubmissions => 
+        prevSubmissions.map(sub => 
+          sub.user_id === submission.user_id 
+            ? { ...sub, status: 'accepted' } 
+            : sub
+        )
+      );
+      
+      Alert.alert(
+        '✅ Sucesso!', 
+        `${submission.user_name} foi aceito no date!`,
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            // ATUALIZAR TUDO
+            loadSubmissions(); // Recarrega do servidor
+            loadDates(); // Atualiza lista principal
+            setAcceptedUser(submission);
+            setShowChatPrompt(true);
+          }
+        }]
+      );
+    } else {
+      Alert.alert('❌ Erro', response.error || 'Não foi possível aceitar o usuário');
+    }
+  } catch (error: any) {
+    Alert.alert('❌ Erro de Conexão', error.message || 'Não foi possível conectar ao servidor');
+  } finally {
+    setIsResponding(false);
+  }
+};
+// Estilos atualizados conforme o manual
+const tw = StyleSheet.create({
+  // Layout principal
   container: {
     flex: 1,
     backgroundColor: Colors.offWhite,
   },
-  loadingContainer: {
+  loadingScreen: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.offWhite,
   },
   loadingText: {
-    marginTop: Spacing.md,
+    marginTop: 12,
     fontSize: 16,
     color: Colors.gray,
     fontFamily: 'Inter-Regular',
   },
-
+  
   // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 10,
+    backgroundColor: Colors.offWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   logo: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.black,
     fontFamily: 'Montserrat-Bold',
     letterSpacing: -0.5,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  filterButton: {
-    position: 'relative',
-    padding: Spacing.xs,
-  },
-  filterBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: Colors.green,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-    borderWidth: 2,
-    borderColor: Colors.offWhite,
-  },
-  filterBadgeText: {
-    color: Colors.black,
-    fontSize: 10,
-    fontWeight: '700',
-    fontFamily: 'Inter-Bold',
-  },
   profileButton: {
-    padding: Spacing.xs,
+    padding: 4,
   },
   profileAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.black,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileInitial: {
-    color: Colors.offWhite,
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
-  },
-
-  // Search
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    marginHorizontal: Spacing.lg,
-    marginVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    gap: Spacing.sm,
-  },
-  searchPlaceholder: {
-    fontSize: 15,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    flex: 1,
-  },
-
-  // Active Filters
-  activeFiltersContainer: {
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  activeFiltersContent: {
-    gap: Spacing.xs,
-  },
-  clearAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    gap: Spacing.xs,
-  },
-  clearAllText: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Medium',
-  },
-  activeFilter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.green,
-    gap: Spacing.xs,
-  },
-  activeFilterText: {
-    fontSize: 13,
-    color: Colors.green,
-    fontFamily: 'Inter-Medium',
-    textTransform: 'capitalize',
-  },
-  moreFilters: {
-    backgroundColor: Colors.lightGray,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-  },
-  moreFiltersText: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Medium',
-  },
-
-  // Feed Container
-  feedContainer: {
-    flex: 1,
-  },
-  feedContent: {
-    paddingBottom: 100,
-  },
-
-  // Greeting
-  greetingSection: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
-  },
-  greeting: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Montserrat-Bold',
-    marginBottom: Spacing.xs,
-  },
-  subGreeting: {
-    fontSize: 17,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-  },
-
-  // Quick Actions
-  quickActions: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-    gap: Spacing.md,
-  },
-  quickAction: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  quickActionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: BorderRadius.md,
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-    borderWidth: 1,
-    borderColor: 'rgba(95, 240, 169, 0.3)',
-  },
-  quickActionText: {
-    fontSize: 13,
-    color: Colors.black,
-    fontFamily: 'Inter-Medium',
-    textAlign: 'center',
-  },
-
-  // Dates Section
-  datesSection: {
-    paddingHorizontal: Spacing.lg,
-  },
-  sectionHeader: {
-    marginBottom: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
-    marginBottom: Spacing.xs,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-  },
-  datesList: {
-    gap: Spacing.lg,
-  },
-  dateItem: {
-    marginBottom: Spacing.lg,
-  },
-
-  // Date Card
-  dateCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-  },
-  dateHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: Spacing.md,
-    backgroundColor: 'rgba(43, 43, 43, 0.02)',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-  },
-  dateBadge: {
-    alignItems: 'flex-start',
-  },
-  dateBadgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
-    textTransform: 'uppercase',
-  },
-  dateTime: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    marginTop: 2,
-  },
-  locationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  locationText: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-  },
-  dateImage: {
-    width: '100%',
-    height: 200,
-  },
-  dateContent: {
-    padding: Spacing.lg,
-  },
-  dateTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Montserrat-Bold',
-    marginBottom: Spacing.xs,
-  },
-  dateDescription: {
-    fontSize: 15,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    marginBottom: Spacing.md,
-    lineHeight: 22,
-  },
-  interestsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-    marginBottom: Spacing.lg,
-  },
-  interestTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.sm,
-    gap: Spacing.xs,
-  },
-  interestEmoji: {
-    fontSize: 14,
-  },
-  interestText: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Medium',
-    textTransform: 'capitalize',
-  },
-  peopleSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  creatorInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  creatorAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: Colors.black,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(95, 240, 169, 0.3)',
   },
-  creatorInitial: {
-    color: Colors.offWhite,
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
+  profileAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(95, 240, 169, 0.3)',
   },
-  creatorDetails: {
+  profileInitial: {
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
+  },
+  
+  // Tabs
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: Colors.offWhite,
+  },
+  tab: {
     flex: 1,
-  },
-  creatorName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: 2,
-  },
-  sharedInterests: {
-    fontSize: 13,
-    color: Colors.green,
-    fontFamily: 'Inter-Medium',
-  },
-  attendeesInfo: {
-    alignItems: 'flex-end',
-  },
-  attendeesCount: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: 2,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
   },
-  attendeesText: {
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.black,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.gray,
+    fontFamily: 'Inter-SemiBold',
+  },
+  tabTextActive: {
+    color: Colors.black,
+    fontWeight: '700',
+  },
+  
+  // Filtros
+  filterSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: Colors.offWhite,
+  },
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+  },
+  filterToggleText: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.black,
     fontFamily: 'Inter-SemiBold',
   },
-  attendeesLabel: {
+  clearFilterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 6,
+  },
+  clearFilterText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: Colors.gray,
+    fontFamily: 'Inter-Medium',
+  },
+  filtersContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: Colors.offWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  filterInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  filterInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: Colors.black,
+    fontFamily: 'Inter-Regular',
+    padding: 0,
+  },
+  typeChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  typeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 20,
+  },
+  typeChipActive: {
+    backgroundColor: Colors.black,
+  },
+  typeChipText: {
     fontSize: 12,
+    fontWeight: '500',
+    color: Colors.gray,
+    fontFamily: 'Inter-Medium',
+  },
+  typeChipTextActive: {
+    color: Colors.white,
+  },
+  
+  // Feed
+  feed: {
+    flex: 1,
+  },
+  greeting: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  greetingText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: Colors.black,
+    fontFamily: 'Montserrat-Bold',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  greetingSub: {
+    fontSize: 16,
     color: Colors.gray,
     fontFamily: 'Inter-Regular',
   },
-  viewDetailsButton: {
+  
+  // Quick Actions
+  quickActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    gap: 16,
+  },
+  quickAction: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  quickIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: Colors.black,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  quickLabel: {
+    fontSize: 13,
+    color: Colors.black,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  
+  // Dates Section
+  datesSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+  },
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.black,
+    fontFamily: 'Montserrat-Bold',
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: Colors.gray,
+    fontFamily: 'Inter-Regular',
+  },
+  
+  // Date Card
+  dateCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: 'rgba(43, 43, 43, 0.02)',
+  },
+  dateBadge: {
+    alignItems: 'flex-start',
+  },
+  dateDay: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.black,
+    textTransform: 'uppercase',
+    fontFamily: 'Inter-Bold',
+    letterSpacing: -0.5,
+  },
+  dateTime: {
+    fontSize: 13,
+    color: Colors.gray,
+    marginTop: 2,
+    fontFamily: 'Inter-Regular',
+  },
+  userStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    marginTop: Spacing.md,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  viewDetailsButtonText: {
-    fontSize: 16,
+  userStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    fontFamily: 'Inter-SemiBold',
+  },
+  imageContainer: {
+    position: 'relative',
+  },
+  cardImage: {
+    width: '100%',
+    height: 180,
+  },
+  typeBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  typeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.white,
+    fontFamily: 'Inter-SemiBold',
+  },
+  cardContent: {
+    padding: 16,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
+  locationText: {
+    fontSize: 13,
+    color: Colors.gray,
+    fontFamily: 'Inter-Regular',
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
     color: Colors.black,
-    fontFamily: 'Inter-Medium',
-    marginRight: Spacing.xs,
+    marginBottom: 8,
+    fontFamily: 'Montserrat-Bold',
+    letterSpacing: -0.3,
   },
-
+  cardDescription: {
+    fontSize: 15,
+    color: Colors.gray,
+    lineHeight: 22,
+    marginBottom: 16,
+    fontFamily: 'Inter-Regular',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  vibeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 6,
+  },
+  vibeText: {
+    fontSize: 12,
+    color: Colors.gray,
+    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
+  },
+  participantInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  participantCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+  },
+  
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.black,
+    marginTop: 16,
+    marginBottom: 8,
+    fontFamily: 'Montserrat-Bold',
+  },
+  emptyText: {
+    fontSize: 15,
+    color: Colors.gray,
+    textAlign: 'center',
+    marginBottom: 24,
+    fontFamily: 'Inter-Regular',
+    lineHeight: 22,
+  },
+  createButton: {
+    backgroundColor: Colors.black,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  createButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
+  },
+  
   // Bottom Navigation
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
+    borderTopColor: 'rgba(0,0,0,0.08)',
     backgroundColor: Colors.white,
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    zIndex: 1000,
   },
   navItem: {
     alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    position: 'relative',
+    paddingHorizontal: 12,
   },
-  createButton: {
-    position: 'absolute',
-    top: -25,
-    backgroundColor: Colors.black,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  navIconContainer: {
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderRadius: 12,
+  },
+  navIconContainerActive: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   navLabel: {
     fontSize: 11,
     color: Colors.gray,
+    fontWeight: '500',
     fontFamily: 'Inter-Medium',
-    marginTop: 24,
+    marginTop: 6,
   },
   navLabelActive: {
-    fontSize: 11,
     color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    marginTop: 4,
+    fontWeight: '600',
   },
-
-  // Modal de Detalhes
+  bottomSpacer: {
+    height: 100,
+  },
+  
+  // Modal
   modalContainer: {
     flex: 1,
     backgroundColor: Colors.offWhite,
@@ -1603,319 +1801,550 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: Colors.white,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.black,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Montserrat-Bold',
   },
   closeButton: {
-    padding: Spacing.xs,
+    padding: 4,
   },
-  headerSpacer: {
-    width: 40,
+  editHeaderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 8,
   },
-  modalContent: {
+  editHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+  },
+  
+  // Date Info View
+  dateInfo: {
     flex: 1,
+    paddingBottom: 20,
   },
-  detailImage: {
-    width: '100%',
-    height: 250,
-  },
-  detailContent: {
-    padding: Spacing.lg,
-  },
-  detailHeader: {
+  dateHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: Spacing.lg,
+    padding: 20,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
   },
-  detailDateBadge: {
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+  dateTimeBadge: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  detailDateText: {
+  dateText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.black,
     fontFamily: 'Inter-Bold',
   },
-  detailTimeText: {
+  timeText: {
     fontSize: 13,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
     marginTop: 2,
+    fontFamily: 'Inter-Regular',
   },
-  detailLocation: {
+  locationInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-    maxWidth: '50%',
+    gap: 6,
+    flex: 1,
+    marginLeft: 12,
   },
-  detailLocationText: {
+  locationDetail: {
     fontSize: 14,
     color: Colors.gray,
     fontFamily: 'Inter-Regular',
-    flexShrink: 1,
+    flex: 1,
   },
   detailTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.black,
+    marginHorizontal: 20,
+    marginVertical: 16,
     fontFamily: 'Montserrat-Bold',
-    marginBottom: Spacing.md,
+    letterSpacing: -0.5,
   },
   detailDescription: {
     fontSize: 16,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
     lineHeight: 24,
-    marginBottom: Spacing.xl,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    fontFamily: 'Inter-Regular',
   },
+  
+  // Info Section
   infoSection: {
-    marginBottom: Spacing.xl,
+    marginHorizontal: 20,
+    marginBottom: 24,
   },
-  infoSectionTitle: {
+  sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.black,
-    fontFamily: 'Inter-Bold',
-    marginBottom: Spacing.md,
+    marginBottom: 12,
+    fontFamily: 'Montserrat-Bold',
+    letterSpacing: -0.3,
   },
-  infoRow: {
+  infoGrid: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  infoItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 12,
   },
   infoLabel: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.gray,
+    fontWeight: '500',
+    minWidth: 80,
     fontFamily: 'Inter-Medium',
-    minWidth: 100,
   },
   infoValue: {
-    fontSize: 15,
-    color: Colors.black,
-    fontFamily: 'Inter-Regular',
-    flex: 1,
-  },
-  detailInterestsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  detailInterestTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.green,
-    gap: Spacing.xs,
-  },
-  detailInterestEmoji: {
-    fontSize: 16,
-  },
-  detailInterestText: {
     fontSize: 14,
-    color: Colors.green,
-    fontFamily: 'Inter-Medium',
-    textTransform: 'capitalize',
+    color: Colors.black,
+    flex: 1,
+    fontFamily: 'Inter-Regular',
   },
-  creatorDetail: {
+  
+  // Submissions Section
+  submissionsSection: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: Colors.blue,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  submissionsList: {
+    gap: 8,
+  },
+  submissionItem: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  submissionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  submissionUser: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.md,
+    gap: 8,
   },
-  creatorDetailAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.black,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  creatorDetailInitial: {
-    color: Colors.offWhite,
-    fontSize: 20,
+  userAvatarText: {
+    color: Colors.white,
+    fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
   },
-  creatorDetailInfo: {
-    flex: 1,
-  },
-  creatorDetailName: {
+  userName: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.black,
     fontFamily: 'Inter-Bold',
-    marginBottom: 4,
   },
-  creatorDetailShared: {
-    fontSize: 14,
-    color: Colors.green,
-    fontFamily: 'Inter-Medium',
-  },
-  submissionForm: {
-    marginTop: Spacing.sm,
-  },
-  submissionLabel: {
-    fontSize: 14,
-    color: Colors.gray,
-    fontFamily: 'Inter-Medium',
-    marginBottom: Spacing.sm,
-  },
-  submissionInput: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    fontSize: 15,
-    color: Colors.black,
-    fontFamily: 'Inter-Regular',
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  submissionCharCount: {
+  submissionDate: {
     fontSize: 12,
     color: Colors.gray,
     fontFamily: 'Inter-Regular',
-    textAlign: 'right',
-    marginTop: Spacing.xs,
   },
-  statusMessage: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  statusMessageContent: {
-    flex: 1,
+  statusAccepted: {
+    backgroundColor: 'rgba(95, 240, 169, 0.1)',
   },
-  statusMessageText: {
-    fontSize: 15,
-    color: Colors.black,
-    fontFamily: 'Inter-Regular',
-    lineHeight: 22,
+  statusRejected: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
   },
-  statusMessageSubtext: {
-    fontSize: 14,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    marginTop: 2,
-    lineHeight: 18,
+  statusPending: {
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
   },
-  tipsContainer: {
-    marginTop: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    borderRadius: BorderRadius.md,
-  },
-  tipsTitle: {
-    fontSize: 14,
+  statusText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: Colors.black,
+    textTransform: 'uppercase',
     fontFamily: 'Inter-SemiBold',
-    marginBottom: Spacing.xs,
   },
-  tipsText: {
-    fontSize: 13,
+  submissionMessage: {
+    fontSize: 14,
     color: Colors.gray,
+    fontStyle: 'italic',
+    marginBottom: 8,
     fontFamily: 'Inter-Regular',
-    lineHeight: 18,
+    lineHeight: 20,
   },
-  modalFooter: {
-    padding: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    backgroundColor: Colors.white,
+  submissionActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+    flex: 1,
   },
-  actionButtonDisabled: {
-    opacity: 0.7,
+  acceptButton: {
+    backgroundColor: Colors.black,
+  },
+  rejectButton: {
+    backgroundColor: Colors.red,
   },
   actionButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Inter-Bold',
-  },
-  creatorActions: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  creatorButton: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-  },
-  creatorButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
+    color: Colors.white,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.black,
   },
-
-  // Footer
-  footerSpacer: {
-    height: Spacing.xxl,
-  },
-
-  // Empty State
-  emptyState: {
+  chatButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
+    justifyContent: 'center',
+    backgroundColor: Colors.black,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 8,
   },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
-    marginTop: 20,
-    marginBottom: 8,
+  chatButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.white,
+    fontFamily: 'Inter-SemiBold',
   },
-  emptyStateText: {
-    fontSize: 16,
+  emptySubmissions: {
+    fontSize: 14,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
     textAlign: 'center',
+    padding: 20,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    fontFamily: 'Inter-Regular',
+  },
+  
+  // Participation Section
+  participationSection: {
+    marginHorizontal: 20,
     marginBottom: 24,
   },
-  createFirstButton: {
-    backgroundColor: Colors.black,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: BorderRadius.md,
+  statusCardAccepted: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(95, 240, 169, 0.1)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.green,
+    gap: 12,
   },
-  createFirstButtonText: {
+  statusCardPending: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.blue,
+    gap: 12,
+  },
+  statusCardRejected: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.red,
+    gap: 12,
+  },
+  statusContent: {
+    flex: 1,
+  },
+  statusTitleAccepted: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.green,
+    marginBottom: 4,
+    fontFamily: 'Inter-Bold',
+  },
+  statusTitlePending: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.blue,
+    marginBottom: 4,
+    fontFamily: 'Inter-Bold',
+  },
+  statusTitleRejected: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.red,
+    marginBottom: 4,
+    fontFamily: 'Inter-Bold',
+  },
+  statusMessage: {
+    fontSize: 14,
+    color: Colors.gray,
+    lineHeight: 20,
+    fontFamily: 'Inter-Regular',
+  },
+  cancelSubmissionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  cancelSubmissionText: {
+    fontSize: 14,
+    color: Colors.red,
+    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
+  },
+  
+  // Submission Form
+  submissionForm: {
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  submissionHint: {
+    fontSize: 14,
+    color: Colors.gray,
+    marginBottom: 12,
+    fontFamily: 'Inter-Regular',
+  },
+  messageInput: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: Colors.black,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 8,
+    fontFamily: 'Inter-Regular',
+  },
+  charCount: {
+    fontSize: 12,
+    color: Colors.gray,
+    textAlign: 'right',
+    fontFamily: 'Inter-Regular',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.black,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 16,
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: Colors.white,
+    fontFamily: 'Inter-Bold',
+  },
+  
+  // Edit Form
+  editForm: {
+    flex: 1,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.black,
+    marginBottom: 8,
+    fontFamily: 'Inter-SemiBold',
+  },
+  input: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: Colors.black,
+    fontFamily: 'Inter-Regular',
+  },
+  hint: {
+    fontSize: 12,
+    color: Colors.gray,
+    marginTop: 4,
+    fontFamily: 'Inter-Regular',
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  optionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  optionButtonActive: {
+    backgroundColor: Colors.black,
+    borderColor: Colors.black,
+  },
+  optionText: {
+    fontSize: 13,
+    color: Colors.gray,
+    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
+  },
+  optionTextActive: {
+    color: Colors.white,
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  editButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cancelEditButton: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  cancelEditText: {
     fontSize: 16,
     fontWeight: '600',
+    color: Colors.black,
     fontFamily: 'Inter-SemiBold',
+  },
+  saveButton: {
+    backgroundColor: Colors.black,
+  },
+  saveText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.white,
+    fontFamily: 'Inter-SemiBold',
+  },
+  
+  // Chat Prompt
+  chatPrompt: {
+    margin: 20,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  chatPromptContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 16,
+  },
+  chatPromptTextContainer: {
+    flex: 1,
+  },
+  chatPromptTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.black,
+    marginBottom: 4,
+    fontFamily: 'Inter-Bold',
+  },
+  chatPromptMessage: {
+    fontSize: 14,
+    color: Colors.gray,
+    fontFamily: 'Inter-Regular',
+    lineHeight: 20,
+  },
+  chatPromptButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.black,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  chatPromptButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.white,
+    fontFamily: 'Inter-Bold',
   },
 });
