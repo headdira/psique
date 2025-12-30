@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  Platform,
   StyleSheet,
   Modal,
   TextInput,
@@ -115,14 +116,6 @@ const mapApiDateToCard = (apiDate: any, index: number) => {
   const locationParts = apiDate.location.split(',');
   const city = locationParts.length > 1 ? locationParts[0].trim() : apiDate.location;
 
-  // Calcular participantes aceitos
-  const participants = apiDate.participants || {};
-  const acceptedParticipants = Object.values(participants).filter((p: any) => p.status === 'accepted').length;
-  
-  // Calcular vagas disponíveis (criador conta como 1 participante)
-  const maxParticipants = Number(apiDate.max_participants) || 1;
-  const availableSlots = Math.max(0, maxParticipants - (acceptedParticipants + 1));
-
   return {
     id: apiDate.id || `temp-${index}`,
     title: apiDate.description.split('.')[0] || apiDate.type,
@@ -133,9 +126,8 @@ const mapApiDateToCard = (apiDate: any, index: number) => {
     location: apiDate.location,
     city: city,
     distance: `${Math.floor(Math.random() * 10) + 1} km`,
-    attendees: acceptedParticipants,
-    maxAttendees: maxParticipants,
-    availableSlots: availableSlots,
+    attendees: 0,
+    maxAttendees: apiDate.max_participants,
     interests: toneToInterests[apiDate.tone] || ['chill', 'social'],
     vibe: toneToVibe[apiDate.tone] || 'chill',
     creator: {
@@ -156,16 +148,6 @@ export default function HomeScreen() {
   const [dates, setDates] = useState<any[]>([]);
   const [loadingDates, setLoadingDates] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showDateDetails, setShowDateDetails] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<any>(null);
-  const [userSubmissionStatus, setUserSubmissionStatus] = useState<{
-    user_status: string;
-    submission: any;
-    can_submit: boolean;
-  } | null>(null);
-  const [loadingSubmission, setLoadingSubmission] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submissionMessage, setSubmissionMessage] = useState('');
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -233,244 +215,29 @@ export default function HomeScreen() {
     setSearchQuery('');
   };
 
-  const handleOpenDateDetails = async (date: any) => {
-    setSelectedDate(date);
-    setSubmissionMessage('');
-    
-    try {
-      setLoadingSubmission(true);
-      
-      // Verificar status da submissão do usuário para este date
-      const response = await apiService.getMySubmission(date.id, user?.id || '');
-      
-      if (response.ok) {
-        setUserSubmissionStatus({
-          user_status: response.user_status,
-          submission: response.submission,
-          can_submit: response.can_submit
-        });
-      } else {
-        // Se houver erro, mostrar mensagem
-        if (response.error && !response.error.includes('not found')) {
-          Alert.alert(
-            'Aviso',
-            'Não foi possível verificar seu status de submissão. Você ainda pode tentar se inscrever.',
-            [{ text: 'Entendi', style: 'cancel' }]
-          );
-        }
-        
-        // Define status padrão
-        setUserSubmissionStatus({
-          user_status: 'not_submitted',
-          submission: null,
-          can_submit: true
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao verificar submissão:', error);
-      
-      Alert.alert(
-        'Erro de conexão',
-        'Não foi possível verificar seu status. Verifique sua conexão.',
-        [{ text: 'OK', style: 'cancel' }]
-      );
-      
-      setUserSubmissionStatus({
-        user_status: 'not_submitted',
-        submission: null,
-        can_submit: true
-      });
-    } finally {
-      setLoadingSubmission(false);
-      setShowDateDetails(true);
-    }
-  };
-
-  const handleSubmitToDate = async () => {
-    if (!user?.id || !selectedDate) {
+  const handleJoinDate = async (dateId: string) => {
+    if (!user?.id) {
       Alert.alert('Erro', 'Você precisa estar logado para participar');
       return;
     }
 
-    if (userSubmissionStatus?.user_status === 'creator') {
-      Alert.alert('Aviso', 'Você é o criador deste date');
-      return;
-    }
-
-    if (!userSubmissionStatus?.can_submit) {
-      Alert.alert('Aviso', 'Você já se submeteu a este date');
-      return;
-    }
-
-    setSubmitting(true);
-    
-    try {
-      const response = await apiService.submitToDate(
-        selectedDate.id,
-        user.id,
-        submissionMessage,
-        user.nome,
-        user.foto_perfil
-      );
-
-      if (response.ok) {
-        Alert.alert('Sucesso!', response.message || 'Sua submissão foi enviada com sucesso');
-        
-        // Atualizar status da submissão
-        setUserSubmissionStatus({
-          user_status: 'pending',
-          submission: response.submission,
-          can_submit: false
-        });
-        
-        setSubmissionMessage('');
-        
-        // Recarregar a lista de dates para atualizar contadores
-        loadDates();
-      } else {
-        // Mapear erros comuns para mensagens amigáveis
-        let errorMessage = response.error;
-        
-        if (response.data?.status === 409) {
-          // Conflitos específicos
-          if (errorMessage.includes('full') || errorMessage.includes('cheio')) {
-            errorMessage = 'Este date já está cheio. Não há mais vagas disponíveis.';
-          } else if (errorMessage.includes('already') || errorMessage.includes('já')) {
-            errorMessage = 'Você já se submeteu a este date.';
-          } else if (errorMessage.includes('creator')) {
-            errorMessage = 'Você é o criador deste date e não pode se submeter.';
-          } else if (errorMessage.includes('pending')) {
-            errorMessage = 'Já existem muitas solicitações pendentes para este date.';
-          }
-        } else if (response.data?.status === 400) {
-          errorMessage = 'Dados inválidos. Verifique as informações e tente novamente.';
-        } else if (response.data?.status === 401) {
-          errorMessage = 'Não autorizado. Faça login novamente.';
-        } else if (response.data?.status === 404) {
-          errorMessage = 'Date não encontrado.';
-        } else if (response.data?.status === 403) {
-          errorMessage = 'Você não tem permissão para esta ação.';
-        }
-
-        Alert.alert(
-          'Erro ao enviar submissão',
-          errorMessage,
-          [
-            { 
-              text: 'Entendi', 
-              style: 'cancel' 
-            },
-            ...(response.data?.status === 409 && errorMessage.includes('cheio') ? [] : [
-              {
-                text: 'Tentar novamente',
-                onPress: () => handleSubmitToDate()
-              }
-            ])
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('Erro ao submeter:', error);
-      
-      Alert.alert(
-        'Erro de conexão',
-        'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
-        [
-          { text: 'OK', style: 'cancel' },
-          { 
-            text: 'Tentar novamente', 
-            onPress: () => handleSubmitToDate()
-          }
-        ]
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCancelSubmission = async () => {
-    if (!user?.id || !selectedDate) return;
-
     Alert.alert(
-      'Cancelar submissão',
-      'Tem certeza que deseja cancelar sua submissão? Você poderá se inscrever novamente se houver vagas.',
+      'Confirmar interesse',
+      'Quer entrar nesse rolê?',
       [
-        { text: 'Não', style: 'cancel' },
-        {
-          text: 'Sim, cancelar',
-          style: 'destructive',
+        { text: 'Não agora', style: 'cancel' },
+        { 
+          text: 'Bora!', 
           onPress: async () => {
             try {
-              const response = await apiService.cancelSubmission(
-                selectedDate.id,
-                user.id
-              );
-
-              if (response.ok) {
-                Alert.alert('Sucesso', response.message || 'Submissão cancelada com sucesso');
-                
-                // Atualizar status
-                setUserSubmissionStatus({
-                  user_status: 'not_submitted',
-                  submission: null,
-                  can_submit: true
-                });
-                
-                // Recarregar dates
-                loadDates();
-              } else {
-                let errorMessage = response.error;
-                
-                if (response.error?.includes('accepted')) {
-                  errorMessage = 'Não é possível cancelar uma submissão que já foi aceita.';
-                } else if (response.error?.includes('not found')) {
-                  errorMessage = 'Submissão não encontrada.';
-                }
-                
-                Alert.alert('Erro', errorMessage || 'Não foi possível cancelar a submissão');
-              }
+              Alert.alert('Show!', 'Seu interesse foi registrado.');
             } catch (error) {
-              console.error('Erro ao cancelar submissão:', error);
-              Alert.alert('Erro', 'Falha na conexão. Tente novamente.');
+              Alert.alert('Erro', 'Não foi possível registrar seu interesse');
             }
-          }
-        }
+          },
+        },
       ]
     );
-  };
-
-  const getSubmissionButtonText = () => {
-    if (!userSubmissionStatus) return 'Carregando...';
-    
-    switch (userSubmissionStatus.user_status) {
-      case 'creator':
-        return 'Você é o criador';
-      case 'accepted':
-        return '✓ Submissão aceita';
-      case 'pending':
-        return '⏳ Submissão pendente';
-      case 'rejected':
-        return 'Submissão rejeitada';
-      default:
-        return 'Participar deste date';
-    }
-  };
-
-  const getSubmissionButtonColor = () => {
-    if (!userSubmissionStatus) return Colors.gray;
-    
-    switch (userSubmissionStatus.user_status) {
-      case 'creator':
-        return Colors.gray;
-      case 'accepted':
-        return Colors.green;
-      case 'pending':
-        return Colors.blue;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.black;
-    }
   };
 
   const getInterestEmoji = (interest: string) => {
@@ -492,7 +259,7 @@ export default function HomeScreen() {
   const renderDateCard = (date: any) => (
     <TouchableOpacity 
       style={styles.dateCard}
-      onPress={() => handleOpenDateDetails(date)}
+      onPress={() => router.push(`/date/${date.id}`)}
       activeOpacity={0.95}
     >
       {/* Header com data e local */}
@@ -554,354 +321,149 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Botão para ver mais informações */}
+        {/* Botão de ação */}
         <TouchableOpacity 
-          style={styles.viewDetailsButton}
-          onPress={() => handleOpenDateDetails(date)}
+          style={styles.joinButton}
+          onPress={() => handleJoinDate(date.id)}
         >
-          <Text style={styles.viewDetailsButtonText}>Ver mais informações</Text>
-          <Ionicons name="chevron-forward" size={16} color={Colors.black} />
+          <Text style={styles.joinButtonText}>Quero ir</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
 
-  const renderDateDetailsModal = () => (
+  const renderFilterModal = () => (
     <Modal
-      visible={showDateDetails}
+      visible={showFilters}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={() => {
-        setShowDateDetails(false);
-        setSubmissionMessage('');
-      }}
+      onRequestClose={() => setShowFilters(false)}
     >
       <SafeAreaView style={styles.modalContainer}>
-        {selectedDate && (
-          <>
-            {/* Header com botão de fechar */}
-            <View style={styles.modalHeader}>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={() => {
-                  setShowDateDetails(false);
-                  setSubmissionMessage('');
-                }}
-              >
-                <Ionicons name="close" size={24} color={Colors.black} />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Detalhes do rolê</Text>
-              <View style={styles.headerSpacer} />
-            </View>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Filtrar rolês</Text>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => setShowFilters(false)}
+          >
+            <Ionicons name="close" size={24} color={Colors.black} />
+          </TouchableOpacity>
+        </View>
 
-            <ScrollView 
-              style={styles.modalContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Imagem */}
-              <Image 
-                source={{ uri: selectedDate.image }} 
-                style={styles.detailImage}
-                resizeMode="cover"
+        <ScrollView style={styles.modalContent}>
+          {/* Busca */}
+          <View style={styles.searchSection}>
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color={Colors.gray} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar rolês..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor={Colors.gray}
               />
-
-              {/* Informações principais */}
-              <View style={styles.detailContent}>
-                <View style={styles.detailHeader}>
-                  <View style={styles.detailDateBadge}>
-                    <Text style={styles.detailDateText}>{selectedDate.date}</Text>
-                    <Text style={styles.detailTimeText}>{selectedDate.time}</Text>
-                  </View>
-                  <View style={styles.detailLocation}>
-                    <Ionicons name="location" size={14} color={Colors.gray} />
-                    <Text style={styles.detailLocationText}>{selectedDate.location}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.detailTitle}>{selectedDate.title}</Text>
-                <Text style={styles.detailDescription}>{selectedDate.description}</Text>
-
-                {/* Informações detalhadas */}
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoSectionTitle}>Sobre este rolê</Text>
-                  
-                  <View style={styles.infoRow}>
-                    <Ionicons name="people" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Participantes:</Text>
-                    <Text style={styles.infoValue}>
-                      {selectedDate.attendees}/{selectedDate.maxAttendees} pessoas
-                      {selectedDate.availableSlots > 0 && (
-                        <Text style={{ color: Colors.green, fontWeight: '600' }}>
-                          {' '}({selectedDate.availableSlots} vaga{selectedDate.availableSlots !== 1 ? 's' : ''} disponível{selectedDate.availableSlots !== 1 ? 's' : ''})
-                        </Text>
-                      )}
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="cash" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Pagamento:</Text>
-                    <Text style={styles.infoValue}>
-                      {selectedDate.apiData?.payment === 'creator' ? 'Anfitrião paga' :
-                       selectedDate.apiData?.payment === 'invitee' ? 'Convidado paga' :
-                       'Cada um paga o seu'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="flag" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Vibe:</Text>
-                    <Text style={styles.infoValue}>{selectedDate.vibe}</Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="calendar" size={18} color={Colors.gray} />
-                    <Text style={styles.infoLabel}>Data completa:</Text>
-                    <Text style={styles.infoValue}>
-                      {new Date(selectedDate.apiData?.datetime).toLocaleDateString('pt-BR', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Interesses */}
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoSectionTitle}>Interesses do rolê</Text>
-                  <View style={styles.detailInterestsRow}>
-                    {selectedDate.interests.map((interest: string, index: number) => (
-                      <View key={index} style={styles.detailInterestTag}>
-                        <Text style={styles.detailInterestEmoji}>{getInterestEmoji(interest)}</Text>
-                        <Text style={styles.detailInterestText}>{interest}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Criador */}
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoSectionTitle}>Organizador</Text>
-                  <View style={styles.creatorDetail}>
-                    <View style={styles.creatorDetailAvatar}>
-                      <Text style={styles.creatorDetailInitial}>
-                        {selectedDate.creator.name.charAt(0)}
-                      </Text>
-                    </View>
-                    <View style={styles.creatorDetailInfo}>
-                      <Text style={styles.creatorDetailName}>
-                        {selectedDate.creator.name}, {selectedDate.creator.age}
-                      </Text>
-                      <Text style={styles.creatorDetailShared}>
-                        {selectedDate.creator.sharedInterests} interesses em comum com você
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Área de submissão */}
-                {userSubmissionStatus && userSubmissionStatus.user_status !== 'creator' && (
-                  <View style={styles.infoSection}>
-                    <Text style={styles.infoSectionTitle}>Participar deste rolê</Text>
-                    
-                    {/* Mensagem de status */}
-                    {userSubmissionStatus.user_status === 'not_submitted' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(43, 43, 43, 0.05)' }]}>
-                        <Ionicons name="information-circle" size={20} color={Colors.blue} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={styles.statusMessageText}>
-                            Este date tem {selectedDate.availableSlots} vaga{selectedDate.availableSlots !== 1 ? 's' : ''} disponível{selectedDate.availableSlots !== 1 ? 's' : ''}.
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'not_submitted' && (
-                      <View style={styles.submissionForm}>
-                        <Text style={styles.submissionLabel}>
-                          Mensagem para o organizador (opcional)
-                        </Text>
-                        <TextInput
-                          style={styles.submissionInput}
-                          placeholder="Diga porque quer participar..."
-                          value={submissionMessage}
-                          onChangeText={setSubmissionMessage}
-                          multiline
-                          numberOfLines={3}
-                          maxLength={200}
-                          placeholderTextColor={Colors.gray}
-                        />
-                        <Text style={styles.submissionCharCount}>
-                          {submissionMessage.length}/200 caracteres
-                        </Text>
-                        
-                        {/* Dicas de submissão */}
-                        <View style={styles.tipsContainer}>
-                          <Text style={styles.tipsTitle}>💡 Dicas para sua submissão:</Text>
-                          <Text style={styles.tipsText}>
-                            • Seja educado e respeitoso{'\n'}
-                            • Explique seus interesses em comum{'\n'}
-                            • Mostre entusiasmo genuíno{'\n'}
-                            • Seja breve e direto
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'accepted' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(95, 240, 169, 0.1)' }]}>
-                        <Ionicons name="checkmark-circle" size={24} color={Colors.green} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={[styles.statusMessageText, { color: Colors.green }]}>
-                            Parabéns! Sua submissão foi aceita.
-                          </Text>
-                          <Text style={styles.statusMessageSubtext}>
-                            Você está confirmado para este date! O organizador pode entrar em contato com mais detalhes.
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'pending' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(0, 122, 255, 0.1)' }]}>
-                        <Ionicons name="time" size={24} color={Colors.blue} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={[styles.statusMessageText, { color: Colors.blue }]}>
-                            Submissão pendente
-                          </Text>
-                          <Text style={styles.statusMessageSubtext}>
-                            Aguardando aprovação do organizador. Você será notificado quando houver uma resposta.
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {userSubmissionStatus.user_status === 'rejected' && (
-                      <View style={[styles.statusMessage, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
-                        <Ionicons name="close-circle" size={24} color={Colors.red} />
-                        <View style={styles.statusMessageContent}>
-                          <Text style={[styles.statusMessageText, { color: Colors.red }]}>
-                            Submissão rejeitada
-                          </Text>
-                          <Text style={styles.statusMessageSubtext}>
-                            Infelizmente sua submissão foi rejeitada. Não desanime, há outros rolês disponíveis!
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
-            </ScrollView>
-
-            {/* Botão de ação */}
-            <View style={styles.modalFooter}>
-              {loadingSubmission ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={Colors.black} />
-                  <Text style={styles.loadingText}>Verificando status...</Text>
-                </View>
-              ) : (
-                <>
-                  {userSubmissionStatus?.user_status === 'pending' && (
-                    <TouchableOpacity 
-                      style={[styles.actionButton, { backgroundColor: Colors.red }]}
-                      onPress={handleCancelSubmission}
-                    >
-                      <Ionicons name="close" size={20} color={Colors.white} />
-                      <Text style={[styles.actionButtonText, { color: Colors.white }]}>
-                        Cancelar submissão
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {(userSubmissionStatus?.user_status === 'not_submitted' || 
-                    userSubmissionStatus?.user_status === 'rejected') && (
-                    <TouchableOpacity 
-                      style={[
-                        styles.actionButton, 
-                        { backgroundColor: getSubmissionButtonColor() },
-                        submitting && styles.actionButtonDisabled
-                      ]}
-                      onPress={handleSubmitToDate}
-                      disabled={submitting || !userSubmissionStatus?.can_submit}
-                    >
-                      {submitting ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons name="person-add" size={20} color={Colors.white} />
-                          <Text style={[styles.actionButtonText, { color: Colors.white }]}>
-                            {getSubmissionButtonText()}
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {userSubmissionStatus?.user_status === 'accepted' && (
-                    <TouchableOpacity 
-                      style={[styles.actionButton, { backgroundColor: Colors.green }]}
-                      onPress={() => {
-                        Alert.alert('Informação', 'Você já está confirmado neste date!');
-                      }}
-                    >
-                      <Ionicons name="checkmark" size={20} color={Colors.white} />
-                      <Text style={[styles.actionButtonText, { color: Colors.white }]}>
-                        ✓ Confirmado
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {userSubmissionStatus?.user_status === 'creator' && (
-                    <View style={styles.creatorActions}>
-                      <TouchableOpacity 
-                        style={[styles.creatorButton, { backgroundColor: Colors.gray }]}
-                        onPress={() => {
-                          Alert.alert('Em breve', 'Funcionalidade de edição em breve!');
-                        }}
-                      >
-                        <Text style={styles.creatorButtonText}>Editar date</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.creatorButton, { backgroundColor: Colors.black }]}
-                        onPress={async () => {
-                          try {
-                            const response = await apiService.getDateSubmissions(
-                              selectedDate.id,
-                              user?.id || ''
-                            );
-                            
-                            if (response.ok) {
-                              Alert.alert(
-                                'Submissões',
-                                `Total: ${response.counters?.total || 0}\n` +
-                                `Pendentes: ${response.counters?.pending || 0}\n` +
-                                `Aceitas: ${response.counters?.accepted || 0}\n` +
-                                `Rejeitadas: ${response.counters?.rejected || 0}`
-                              );
-                            } else {
-                              Alert.alert('Erro', 'Não foi possível carregar as submissões');
-                            }
-                          } catch (error) {
-                            Alert.alert('Erro', 'Falha na conexão');
-                          }
-                        }}
-                      >
-                        <Text style={[styles.creatorButtonText, { color: Colors.white }]}>
-                          Ver submissões
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </>
-              )}
             </View>
-          </>
-        )}
+          </View>
+
+          {/* Filtros por categoria */}
+          {FILTER_CATEGORIES.map(category => (
+            <View key={category.id} style={styles.filterCategory}>
+              <Text style={styles.filterCategoryTitle}>{category.title}</Text>
+              <View style={styles.filterOptions}>
+                {category.options.map(option => (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.filterOption,
+                      activeFilters.includes(option.id) && styles.filterOptionActive
+                    ]}
+                    onPress={() => toggleFilter(option.id)}
+                  >
+                    <Text style={styles.filterOptionIcon}>{option.icon}</Text>
+                    <Text style={[
+                      styles.filterOptionLabel,
+                      activeFilters.includes(option.id) && styles.filterOptionLabelActive
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ))}
+
+          {/* Filtro de distância */}
+          <View style={styles.filterCategory}>
+            <Text style={styles.filterCategoryTitle}>Distância máxima</Text>
+            <View style={styles.distanceOptions}>
+              {['1 km', '5 km', '10 km', '20 km', '50 km'].map(distance => (
+                <TouchableOpacity
+                  key={distance}
+                  style={[
+                    styles.distanceOption,
+                    activeFilters.includes(`dist_${distance}`) && styles.distanceOptionActive
+                  ]}
+                  onPress={() => toggleFilter(`dist_${distance}`)}
+                >
+                  <Text style={[
+                    styles.distanceOptionText,
+                    activeFilters.includes(`dist_${distance}`) && styles.distanceOptionTextActive
+                  ]}>
+                    {distance}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Filtro de data */}
+          <View style={styles.filterCategory}>
+            <Text style={styles.filterCategoryTitle}>Quando</Text>
+            <View style={styles.dateOptions}>
+              {[
+                { id: 'today', label: 'Hoje' },
+                { id: 'tomorrow', label: 'Amanhã' },
+                { id: 'week', label: 'Esta semana' },
+                { id: 'weekend', label: 'Fim de semana' },
+                { id: 'any', label: 'Qualquer data' },
+              ].map(option => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.dateOption,
+                    activeFilters.includes(option.id) && styles.dateOptionActive
+                  ]}
+                  onPress={() => toggleFilter(option.id)}
+                >
+                  <Text style={[
+                    styles.dateOptionText,
+                    activeFilters.includes(option.id) && styles.dateOptionTextActive
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Footer do modal */}
+        <View style={styles.modalFooter}>
+          <TouchableOpacity 
+            style={styles.clearButton}
+            onPress={clearFilters}
+          >
+            <Text style={styles.clearButtonText}>Limpar tudo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.applyButton}
+            onPress={() => setShowFilters(false)}
+          >
+            <Text style={styles.applyButtonText}>
+              Ver {dates.length} rolês
+            </Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -967,7 +529,7 @@ export default function HomeScreen() {
       >
         <Ionicons name="search" size={18} color={Colors.gray} />
         <Text style={styles.searchPlaceholder}>
-          Buscar rolês por interesse, local, vibe...
+          TESTE DE PROFILE
         </Text>
       </TouchableOpacity>
 
@@ -1139,8 +701,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Modal de detalhes do date */}
-      {renderDateDetailsModal()}
+      {renderFilterModal()}
     </SafeAreaView>
   );
 }
@@ -1474,7 +1035,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   creatorInfo: {
     flexDirection: 'row',
@@ -1530,20 +1091,17 @@ const styles = StyleSheet.create({
     color: Colors.gray,
     fontFamily: 'Inter-Regular',
   },
-  viewDetailsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  joinButton: {
+    backgroundColor: Colors.black,
     paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    marginTop: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
   },
-  viewDetailsButtonText: {
+  joinButtonText: {
+    color: Colors.offWhite,
     fontSize: 16,
-    color: Colors.black,
-    fontFamily: 'Inter-Medium',
-    marginRight: Spacing.xs,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
   },
 
   // Bottom Navigation
@@ -1581,6 +1139,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+
   navLabel: {
     fontSize: 11,
     color: Colors.gray,
@@ -1594,7 +1153,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Modal de Detalhes
+  // Modal de Filtros
   modalContainer: {
     flex: 1,
     backgroundColor: Colors.offWhite,
@@ -1609,7 +1168,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.lightGray,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: Colors.black,
     fontFamily: 'Inter-Bold',
@@ -1617,267 +1176,158 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: Spacing.xs,
   },
-  headerSpacer: {
-    width: 40,
-  },
   modalContent: {
     flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
   },
-  detailImage: {
-    width: '100%',
-    height: 250,
+  searchSection: {
+    marginBottom: Spacing.xl,
   },
-  detailContent: {
-    padding: Spacing.lg,
-  },
-  detailHeader: {
+  searchInputContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.lg,
-  },
-  detailDateBadge: {
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
-  },
-  detailDateText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
-  },
-  detailTimeText: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    marginTop: 2,
-  },
-  detailLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    maxWidth: '50%',
-  },
-  detailLocationText: {
-    fontSize: 14,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    flexShrink: 1,
-  },
-  detailTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Montserrat-Bold',
-    marginBottom: Spacing.md,
-  },
-  detailDescription: {
-    fontSize: 16,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    lineHeight: 24,
-    marginBottom: Spacing.xl,
-  },
-  infoSection: {
-    marginBottom: Spacing.xl,
-  },
-  infoSectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
-    marginBottom: Spacing.md,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
     gap: Spacing.sm,
   },
-  infoLabel: {
-    fontSize: 15,
-    color: Colors.gray,
-    fontFamily: 'Inter-Medium',
-    minWidth: 100,
-  },
-  infoValue: {
-    fontSize: 15,
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
     color: Colors.black,
     fontFamily: 'Inter-Regular',
-    flex: 1,
   },
-  detailInterestsRow: {
+  filterCategory: {
+    marginBottom: Spacing.xl,
+  },
+  filterCategoryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: Spacing.md,
+  },
+  filterOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
-  detailInterestTag: {
+  filterOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.green,
-    gap: Spacing.xs,
-  },
-  detailInterestEmoji: {
-    fontSize: 16,
-  },
-  detailInterestText: {
-    fontSize: 14,
-    color: Colors.green,
-    fontFamily: 'Inter-Medium',
-    textTransform: 'capitalize',
-  },
-  creatorDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.md,
-  },
-  creatorDetailAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.black,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  creatorDetailInitial: {
-    color: Colors.offWhite,
-    fontSize: 20,
-    fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
-  },
-  creatorDetailInfo: {
-    flex: 1,
-  },
-  creatorDetailName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
-    marginBottom: 4,
-  },
-  creatorDetailShared: {
-    fontSize: 14,
-    color: Colors.green,
-    fontFamily: 'Inter-Medium',
-  },
-  submissionForm: {
-    marginTop: Spacing.sm,
-  },
-  submissionLabel: {
-    fontSize: 14,
-    color: Colors.gray,
-    fontFamily: 'Inter-Medium',
-    marginBottom: Spacing.sm,
-  },
-  submissionInput: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
     borderColor: Colors.lightGray,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    fontSize: 15,
-    color: Colors.black,
-    fontFamily: 'Inter-Regular',
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  submissionCharCount: {
-    fontSize: 12,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    textAlign: 'right',
-    marginTop: Spacing.xs,
-  },
-  statusMessage: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  statusMessageContent: {
-    flex: 1,
-  },
-  statusMessageText: {
-    fontSize: 15,
-    color: Colors.black,
-    fontFamily: 'Inter-Regular',
-    lineHeight: 22,
-  },
-  statusMessageSubtext: {
-    fontSize: 14,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  tipsContainer: {
-    marginTop: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: 'rgba(43, 43, 43, 0.05)',
-    borderRadius: BorderRadius.md,
-  },
-  tipsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
+    gap: Spacing.xs,
     marginBottom: Spacing.xs,
   },
-  tipsText: {
-    fontSize: 13,
+  filterOptionActive: {
+    backgroundColor: Colors.green,
+    borderColor: Colors.green,
+  },
+  filterOptionIcon: {
+    fontSize: 16,
+  },
+  filterOptionLabel: {
+    fontSize: 14,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    lineHeight: 18,
+    fontFamily: 'Inter-Medium',
+  },
+  filterOptionLabelActive: {
+    color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
+  },
+  distanceOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  distanceOption: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+  },
+  distanceOptionActive: {
+    backgroundColor: Colors.black,
+    borderColor: Colors.black,
+  },
+  distanceOptionText: {
+    fontSize: 14,
+    color: Colors.gray,
+    fontFamily: 'Inter-Medium',
+  },
+  distanceOptionTextActive: {
+    color: Colors.offWhite,
+    fontFamily: 'Inter-SemiBold',
+  },
+  dateOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  dateOption: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+  },
+  dateOptionActive: {
+    backgroundColor: Colors.black,
+    borderColor: Colors.black,
+  },
+  dateOptionText: {
+    fontSize: 14,
+    color: Colors.gray,
+    fontFamily: 'Inter-Medium',
+  },
+  dateOptionTextActive: {
+    color: Colors.offWhite,
+    fontFamily: 'Inter-SemiBold',
   },
   modalFooter: {
+    flexDirection: 'row',
     padding: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.lightGray,
-    backgroundColor: Colors.white,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-  },
-  actionButtonDisabled: {
-    opacity: 0.7,
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Inter-Bold',
-  },
-  creatorActions: {
-    flexDirection: 'row',
     gap: Spacing.md,
   },
-  creatorButton: {
+  clearButton: {
     flex: 1,
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+  },
+  clearButtonText: {
+    fontSize: 16,
+    color: Colors.gray,
+    fontFamily: 'Inter-SemiBold',
+  },
+  applyButton: {
+    flex: 2,
+    backgroundColor: Colors.black,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
   },
-  creatorButtonText: {
+  applyButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.black,
+    color: Colors.offWhite,
+    fontFamily: 'Inter-Bold',
   },
 
   // Footer

@@ -1,20 +1,21 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// === CONFIGURAÇÃO DA API ===
-// Ajuste a URL base conforme o seu backend Eros
-const API_URL = 'https://borababy.netlify.app/api'; 
+// Configurações da API
+const CLIENTES_API_URL = 'https://narciso-v1.netlify.app/clientes';
+const X_API_KEY = 'bb_live_9f8e3c7a2d1b4e6f0a9c5b8d7e4a1c6b2f0d9e8a7c4b3a2d1e6f5c8b9';
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: CLIENTES_API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'x-api-key': X_API_KEY,
   },
 });
 
-// === CHAVES DE STORAGE ===
+// Chaves para AsyncStorage
 const STORAGE_KEYS = {
   USER_ID: '@psique:user_id',
   USER_DATA: '@psique:user_data',
@@ -22,64 +23,68 @@ const STORAGE_KEYS = {
   SESSION_TOKEN: '@psique:session_token',
 } as const;
 
-// === INTERFACE DO USUÁRIO (Corrigida para incluir 'gosto') ===
+// === AQUI ESTAVA O ERRO: Adicionado 'export' ===
 export interface UserData {
   id: string;
   email: string;
   nome: string;
   foto?: string;
   type: string;
-  created_at?: string;
-  updated_at?: string;
-  
-  // Adicionado para parar o erro no HomeScreen
-  gosto?: { [key: string]: string | number | boolean }; 
-  
+  created_at: string;
+  updated_at: string;
   [key: string]: any;
 }
 
-// === INTERCEPTOR DE PROTEÇÃO ===
-// Injeta o Token em toda requisição automaticamente
-api.interceptors.request.use(
-  async (config) => {
-    const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-api.interceptors.response.use(
-  response => response,
-  error => {
-    // Log de erro para debug
-    console.error(`[API Error] ${error.config?.url}:`, error.response?.status, error.message);
-    return Promise.reject(error);
-  }
-);
-
-// === GERENCIAMENTO DE SESSÃO ===
-
-export const saveUserSession = async (userId: string, userData: UserData, email: string, token?: string) => {
+// Funções para gerenciar sessão
+export const saveUserSession = async (userId: string, userData: any, email: string) => {
   try {
-    const pairs: [string, string][] = [
+    await AsyncStorage.multiSet([
       [STORAGE_KEYS.USER_ID, userId],
       [STORAGE_KEYS.USER_DATA, JSON.stringify(userData)],
       [STORAGE_KEYS.USER_EMAIL, email],
-    ];
-
-    // Salva o token se ele for fornecido (Auth Google / Cadastro)
-    if (token) {
-      pairs.push([STORAGE_KEYS.SESSION_TOKEN, token]);
-    }
-
-    await AsyncStorage.multiSet(pairs);
+      [STORAGE_KEYS.SESSION_TOKEN, Date.now().toString()],
+    ]);
     return true;
   } catch (error) {
     console.error('Erro ao salvar sessão:', error);
     return false;
+  }
+};
+
+export const getUserId = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(STORAGE_KEYS.USER_ID);
+  } catch (error) {
+    console.error('Erro ao obter user_id:', error);
+    return null;
+  }
+};
+
+export const getUserData = async (): Promise<UserData | null> => {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Erro ao obter user_data:', error);
+    return null;
+  }
+};
+
+export const getUserEmail = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL);
+  } catch (error) {
+    console.error('Erro ao obter email:', error);
+    return null;
+  }
+};
+
+export const getSessionToken = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
+  } catch (error) {
+    console.error('Erro ao obter session token:', error);
+    return null;
   }
 };
 
@@ -98,61 +103,98 @@ export const clearSession = async () => {
   }
 };
 
-// Getters
-export const getUserId = async () => AsyncStorage.getItem(STORAGE_KEYS.USER_ID);
-export const getUserData = async () => {
-  const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
-  return data ? JSON.parse(data) : null;
-};
-export const getUserEmail = async () => AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL);
-export const getSessionToken = async () => AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
-
 export const isLoggedIn = async (): Promise<boolean> => {
-  const token = await getSessionToken();
-  const userId = await getUserId();
-  return !!(token && userId);
-};
-
-// === MÉTODOS DA API ===
-
-export const clientesApi = {
-  // Busca dados do usuário pelo Token (Rota /me)
-  getMe: async () => {
-    try {
-      const response = await api.get('/me'); 
-      return { success: true, data: response.data };
-    } catch (error: any) {
-      return { success: false, message: error.response?.data?.message || 'Erro ao buscar perfil' };
-    }
-  },
-
-  // Busca cliente por email (Fallback para login sem token direto)
-  getClienteByEmail: async (email: string) => {
-    try {
-      // Ajuste a rota conforme seu backend real
-      const response = await api.get(`/clientes?email=${email}`); 
-      
-      // Lógica para lidar se retornar array ou objeto único
-      const data = Array.isArray(response.data) ? response.data[0] : response.data;
-      
-      if (data) {
-        return { success: true, userId: data.id, userData: data };
-      }
-      return { success: false, message: 'Usuário não encontrado' };
-    } catch (error: any) {
-      return { success: false, message: 'Erro na conexão com API' };
-    }
-  },
-
-  // Atualizar dados do cliente
-  updateCliente: async (userId: string, data: Partial<UserData>) => {
-     try {
-       const response = await api.put(`/clientes/${userId}`, data);
-       return { success: true, data: response.data };
-     } catch (error: any) {
-       return { success: false, message: error.message };
-     }
+  try {
+    const userId = await getUserId();
+    const sessionToken = await getSessionToken();
+    return !!(userId && sessionToken);
+  } catch (error) {
+    console.error('Erro ao verificar login:', error);
+    return false;
   }
 };
+
+// Funções da API de Clientes
+export const clientesApi = {
+  // Busca todos os clientes
+  getAllClientes: async () => {
+    try {
+      const response = await api.get('');
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar clientes:', error);
+      throw error;
+    }
+  },
+
+  // Busca cliente por email
+  getClienteByEmail: async (email: string) => {
+    try {
+      const response = await api.get('');
+      const data = response.data;
+      
+      if (data.success && data.data) {
+        // Procura o cliente pelo email
+        for (const [userId, userData] of Object.entries(data.data)) {
+          const cliente = userData as any;
+          if (cliente.email.toLowerCase() === email.toLowerCase()) {
+            return {
+              success: true,
+              userId: userId,
+              userData: cliente
+            };
+          }
+        }
+      }
+      
+      return {
+        success: false,
+        message: 'Cliente não encontrado'
+      };
+    } catch (error) {
+      console.error('Erro ao buscar cliente por email:', error);
+      throw error;
+    }
+  },
+
+  // Cria novo cliente (se necessário)
+  createCliente: async (clienteData: any) => {
+    try {
+      const response = await api.post('', clienteData);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao criar cliente:', error);
+      throw error;
+    }
+  },
+};
+
+// Interceptor para logs (opcional)
+api.interceptors.request.use(config => {
+  console.log('📤 Enviando requisição:', {
+    url: config.url,
+    method: config.method,
+    headers: config.headers,
+  });
+  return config;
+});
+
+api.interceptors.response.use(
+  response => {
+    console.log('✅ Resposta recebida:', {
+      status: response.status,
+      data: response.data,
+    });
+    return response;
+  },
+  error => {
+    console.error('❌ Erro na requisição:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    return Promise.reject(error);
+  }
+);
 
 export default api;
