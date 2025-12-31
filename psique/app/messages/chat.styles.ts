@@ -1,101 +1,50 @@
 import { StyleSheet, Platform } from 'react-native';
-<<<<<<< HEAD
-import { Colors, Spacing, Typography } from '../../src/theme';
-
-export const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: Colors.offWhite 
-=======
 import { Colors } from '../../src/theme';
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.offWhite,
->>>>>>> psique.dev
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-<<<<<<< HEAD
-    padding: Spacing.md,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.lightGray,
-  },
-  backButton: { 
-    marginRight: Spacing.md 
-  },
-  backText: { 
-    fontSize: 24, 
-    color: Colors.black 
-  },
-  title: { 
-    ...Typography.h3, 
-    fontSize: 18 
-  },
-  chatContent: { 
-    padding: Spacing.md, 
-    paddingBottom: 20 
-  },
-  msgBubble: {
-=======
-    padding: 16,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-    paddingTop: Platform.OS === 'ios' ? 50 : 16,
+    zIndex: 10,
   },
   backButton: {
     padding: 8,
+    marginRight: 8,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginLeft: 10,
     color: Colors.black,
+    fontFamily: 'Montserrat-Bold',
+    flex: 1,
   },
   messagesList: {
     padding: 16,
     paddingBottom: 20,
   },
+  
+  // Balões de Mensagem
   bubble: {
->>>>>>> psique.dev
     maxWidth: '80%',
     padding: 12,
     borderRadius: 16,
     marginBottom: 8,
   },
-<<<<<<< HEAD
-  msgMine: {
-=======
   myBubble: {
->>>>>>> psique.dev
     alignSelf: 'flex-end',
-    backgroundColor: Colors.green,
+    backgroundColor: Colors.green, // Cor da marca (Verde)
     borderBottomRightRadius: 4,
   },
-<<<<<<< HEAD
-  msgOther: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.white,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-  },
-  msgText: { 
-    fontSize: 15, 
-    color: Colors.black 
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: Spacing.sm,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.lightGray,
-    alignItems: 'center',
-=======
   otherBubble: {
     alignSelf: 'flex-start',
     backgroundColor: Colors.white,
@@ -103,47 +52,42 @@ export const styles = StyleSheet.create({
     borderColor: Colors.lightGray,
     borderBottomLeftRadius: 4,
   },
+  
+  // Textos
   textMine: {
-    color: Colors.white,
+    color: Colors.white, // Texto branco no fundo verde
     fontSize: 15,
+    fontFamily: 'Inter-Regular',
   },
   textOther: {
-    color: Colors.black,
+    color: Colors.black, // Texto preto no fundo branco
     fontSize: 15,
+    fontFamily: 'Inter-Regular',
   },
+  
+  // Input Area
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,
+    padding: 12,
     backgroundColor: Colors.white,
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: Colors.lightGray,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 10,
->>>>>>> psique.dev
+    // Ajuste para iPhone X+
+    paddingBottom: Platform.OS === 'ios' ? 30 : 12,
   },
   input: {
     flex: 1,
     backgroundColor: Colors.offWhite,
-    borderRadius: 20,
+    borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
-<<<<<<< HEAD
-    marginRight: 8,
-    fontSize: 15,
-  },
-  sendButton: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 10 
-  },
-  sendText: { 
-    color: Colors.green, 
-    fontWeight: 'bold', 
-    fontSize: 16 
-=======
     fontSize: 15,
     marginRight: 10,
     borderWidth: 1,
     borderColor: Colors.lightGray,
+    color: Colors.black,
+    maxHeight: 100, // Limite para multiline
   },
   sendButton: {
     backgroundColor: Colors.black,
@@ -152,6 +96,9 @@ export const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
->>>>>>> psique.dev
   },
+  sendButtonDisabled: {
+    backgroundColor: Colors.gray,
+    opacity: 0.5,
+  }
 });

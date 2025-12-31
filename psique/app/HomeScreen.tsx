@@ -10,7 +10,7 @@ import {
   RefreshControl,
   Animated,
   Easing,
-  Alert // Importante: Alert estava faltando em alguns contextos
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,7 +19,7 @@ import { Colors } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { apiService } from '../src/api/apiDates';
 
-// Importando Estilos e Cores
+// Importando Estilos e Cores do arquivo separado
 import { styles, BrandColors } from './HomeScreen.styles';
 
 // Componente de Date Card
@@ -109,24 +109,6 @@ const DateCard = ({ date, onPress }: any) => {
             <Text style={styles.locationText}>{date?.city || 'Local'}</Text>
           </View>
           
-<<<<<<< HEAD
-          <View style={styles.infoGrid}>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Criada em</Text>
-              <Text style={styles.infoValue}>{formatDate(user.created_at || '')}</Text>
-            </View>
-            
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Atualizada em</Text>
-              <Text style={styles.infoValue}>{formatDate(user.updated_at || '')}</Text>
-            </View>
-            
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Status</Text>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>Ativa</Text>
-              </View>
-=======
           <Text style={styles.cardTitle}>{date?.title || 'Rolê sem nome'}</Text>
           <Text style={styles.cardDescription} numberOfLines={2}>
             {date?.description || 'Vibe real, conexão de verdade.'}
@@ -145,7 +127,6 @@ const DateCard = ({ date, onPress }: any) => {
               <Text style={styles.participantCount}>
                 {date?.attendees || 0}/{date?.maxAttendees || 1}
               </Text>
->>>>>>> psique.dev
             </View>
           </View>
         </View>
@@ -277,7 +258,7 @@ const DateDetailsModal = ({
       } else {
         Alert.alert('❌ Não rolou', response.error || 'Deu ruim ao aceitar');
       }
-    } catch (error: any) { // CORRIGIDO: Tipado como any
+    } catch (error: any) {
       Alert.alert('❌ Sem conexão', error.message || 'Servidor offline');
     } finally {
       setIsResponding(false);
@@ -308,7 +289,7 @@ const DateDetailsModal = ({
       } else {
         Alert.alert('❌ Erro', response.error);
       }
-    } catch (error: any) { // CORRIGIDO: Tipado como any
+    } catch (error: any) {
       Alert.alert('❌ Erro', 'Sem conexão');
     } finally {
       setSaving(false);
@@ -336,7 +317,7 @@ const DateDetailsModal = ({
       } else {
         Alert.alert('❌ Erro', response.error);
       }
-    } catch (error: any) { // CORRIGIDO: Tipado como any
+    } catch (error: any) {
       Alert.alert('❌ Erro', 'Sem conexão');
     } finally {
       setSubmitting(false);
@@ -364,7 +345,7 @@ const DateDetailsModal = ({
               } else {
                 Alert.alert('❌ Erro', response.error);
               }
-            } catch (error: any) { // CORRIGIDO: Tipado como any
+            } catch (error: any) {
               Alert.alert('❌ Erro', 'Sem conexão');
             }
           }
@@ -401,55 +382,12 @@ const DateDetailsModal = ({
                 {submission.user_name?.charAt(0) || 'U'}
               </Text>
             </View>
-<<<<<<< HEAD
-          </View>
-        )}
-        
-        {/* Ações */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚡ Ações rápidas</Text>
-          
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/profile')}
-            >
-              <Text style={styles.actionEmoji}>👤</Text>
-              <Text style={styles.actionText}>Perfil</Text>
-            </TouchableOpacity>
-            
-            {/* === NOVO BOTÃO DE MENSAGENS === */}
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/messages')}
-            >
-              <Text style={styles.actionEmoji}>💬</Text>
-              <Text style={styles.actionText}>Mensagens</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
-            >
-              <Text style={styles.actionEmoji}>❤️</Text>
-              <Text style={styles.actionText}>Matches</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
-            >
-              <Text style={styles.actionEmoji}>⚙️</Text>
-              <Text style={styles.actionText}>Configurar</Text>
-            </TouchableOpacity>
-=======
           )}
           <View>
             <Text style={styles.userName}>{submission.user_name || 'Usuário'}</Text>
             <Text style={styles.submissionDate}>
               {new Date(submission.submitted_at).toLocaleDateString('pt-BR')}
             </Text>
->>>>>>> psique.dev
           </View>
         </View>
         <View style={[

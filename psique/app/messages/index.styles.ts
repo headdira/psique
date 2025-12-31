@@ -1,51 +1,24 @@
-import { StyleSheet } from 'react-native';
-<<<<<<< HEAD
-import { Colors, Spacing, Typography } from '../../src/theme';
-
-export const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: Colors.offWhite 
-=======
+import { StyleSheet, Platform } from 'react-native';
 import { Colors } from '../../src/theme';
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.offWhite,
->>>>>>> psique.dev
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-<<<<<<< HEAD
-    padding: Spacing.md,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20, // Ajuste para StatusBar
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.lightGray,
-  },
-  backButton: { 
-    marginRight: Spacing.md 
-  },
-  backText: { 
-    fontSize: 24, 
-    color: Colors.black 
-  },
-  title: { 
-    ...Typography.h3, 
-    fontSize: 20 
-  },
-  listContent: { 
-    padding: Spacing.md 
-=======
-    padding: 16,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
-    paddingTop: 50, // Ajuste para safe area
   },
   backButton: {
-    marginRight: 16,
+    padding: 8,
+    marginRight: 8,
   },
   title: {
     fontSize: 20,
@@ -55,80 +28,22 @@ export const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
->>>>>>> psique.dev
   },
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
-<<<<<<< HEAD
-    padding: Spacing.md,
-    borderRadius: 12,
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-  },
-  avatar: { 
-    width: 50, 
-    height: 50, 
-    borderRadius: 25, 
-    marginRight: Spacing.md, 
-    backgroundColor: '#ddd' 
-  },
-  chatInfo: { 
-    flex: 1 
-  },
-  row: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    marginBottom: 4 
-  },
-  name: { 
-    ...Typography.h3, 
-    fontSize: 16 
-  },
-  time: { 
-    ...Typography.caption, 
-    fontSize: 12 
-  },
-  lastMsg: { 
-    ...Typography.bodySmall, 
-    color: Colors.gray 
-  },
-  badge: {
-    backgroundColor: Colors.green,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-    paddingHorizontal: 6,
-  },
-  badgeText: { 
-    fontSize: 10, 
-    fontWeight: 'bold', 
-    color: Colors.black 
-  },
-  emptyContainer: { 
-    alignItems: 'center', 
-    marginTop: 50 
-  },
-  emptyText: { 
-    ...Typography.h3, 
-    color: Colors.gray 
-  },
-  emptySubText: { 
-    ...Typography.bodySmall, 
-    marginTop: 8, 
-    color: Colors.gray 
-  },
-=======
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: Colors.lightGray,
+    // Sombra leve
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   avatar: {
     width: 50,
@@ -136,6 +51,8 @@ export const styles = StyleSheet.create({
     borderRadius: 25,
     marginRight: 12,
     backgroundColor: Colors.lightGray,
+    borderWidth: 1,
+    borderColor: '#eee',
   },
   chatInfo: {
     flex: 1,
@@ -149,14 +66,32 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: Colors.black,
+    fontFamily: 'Inter-SemiBold',
   },
   time: {
     fontSize: 12,
     color: Colors.gray,
+    fontFamily: 'Inter-Regular',
   },
   lastMsg: {
     fontSize: 14,
     color: Colors.gray,
+    fontFamily: 'Inter-Regular',
+  },
+  badge: {
+    backgroundColor: Colors.green,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: Colors.white,
   },
   emptyContainer: {
     flex: 1,
@@ -166,12 +101,15 @@ export const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: Colors.gray,
+    fontWeight: 'bold',
+    color: Colors.black,
+    marginTop: 16,
     marginBottom: 8,
   },
   emptySub: {
     fontSize: 14,
     color: Colors.gray,
+    textAlign: 'center',
+    paddingHorizontal: 40,
   }
->>>>>>> psique.dev
 });
