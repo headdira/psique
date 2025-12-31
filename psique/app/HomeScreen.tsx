@@ -5,15 +5,12 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  ScrollView,
-  Alert,
-  StyleSheet,
   Modal,
   TextInput,
   RefreshControl,
-  Platform,
   Animated,
-  Easing
+  Easing,
+  Alert // Importante: Alert estava faltando em alguns contextos
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -22,20 +19,10 @@ import { Colors } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { apiService } from '../src/api/apiDates';
 
-// Paleta de cores expandida da marca
-const BrandColors = {
-  black: '#0E0E0E',
-  gray: '#2B2B2B',
-  offWhite: '#F5F4F2',
-  green: '#5FF0A9',
-  peach: '#FFB994',
-  lilac: '#C7B5FF',
-  blue: '#6E8AFF',
-  coral: '#FF6B8B',
-  teal: '#2EE6CA'
-};
+// Importando Estilos e Cores
+import { styles, BrandColors } from './HomeScreen.styles';
 
-// Componente de Date Card com animações fluidas
+// Componente de Date Card
 const DateCard = ({ date, onPress }: any) => {
   const [scaleAnim] = useState(new Animated.Value(1));
   
@@ -75,25 +62,25 @@ const DateCard = ({ date, onPress }: any) => {
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
-        style={s.dateCard}
+        style={styles.dateCard}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={0.95}
         delayPressIn={0}
       >
-        <View style={s.cardHeader}>
-          <View style={s.dateBadge}>
-            <Text style={s.dateDay}>{date?.date || 'EM BREVE'}</Text>
-            <Text style={s.dateTime}>{date?.time || ''}</Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.dateBadge}>
+            <Text style={styles.dateDay}>{date?.date || 'EM BREVE'}</Text>
+            <Text style={styles.dateTime}>{date?.time || ''}</Text>
           </View>
           {date?.userStatus && date.userStatus !== 'not_submitted' && (
-            <View style={[s.userStatusBadge, { backgroundColor: `${statusColors[date.userStatus]}20` }]}>
+            <View style={[styles.userStatusBadge, { backgroundColor: `${statusColors[date.userStatus]}20` }]}>
               <Ionicons 
-                name={statusIcons[date.userStatus]} 
+                name={statusIcons[date.userStatus] as any} 
                 size={12} 
                 color={statusColors[date.userStatus]} 
               />
-              <Text style={[s.userStatusText, { color: statusColors[date.userStatus] }]}>
+              <Text style={[styles.userStatusText, { color: statusColors[date.userStatus] }]}>
                 {date.userStatus === 'accepted' ? 'Aceito' :
                  date.userStatus === 'pending' ? 'Pendente' :
                  date.userStatus === 'rejected' ? 'Recusado' : ''}
@@ -102,42 +89,42 @@ const DateCard = ({ date, onPress }: any) => {
           )}
         </View>
         
-        <View style={s.imageContainer}>
-          <Image source={{ uri: date?.image || getImageForType('outro') }} style={s.cardImage} />
-          <View style={s.typeBadge}>
+        <View style={styles.imageContainer}>
+          <Image source={{ uri: date?.image || getImageForType('outro') }} style={styles.cardImage} />
+          <View style={styles.typeBadge}>
             <Ionicons 
-              name={getIconForType(date?.type)} 
+              name={getIconForType(date?.type) as any} 
               size={12} 
               color={Colors.white} 
             />
-            <Text style={s.typeText}>
+            <Text style={styles.typeText}>
               {getTypeLabel(date?.type)}
             </Text>
           </View>
         </View>
         
-        <View style={s.cardContent}>
-          <View style={s.locationRow}>
+        <View style={styles.cardContent}>
+          <View style={styles.locationRow}>
             <Ionicons name="location" size={14} color={BrandColors.gray} />
-            <Text style={s.locationText}>{date?.city || 'Local'}</Text>
+            <Text style={styles.locationText}>{date?.city || 'Local'}</Text>
           </View>
           
-          <Text style={s.cardTitle}>{date?.title || 'Rolê sem nome'}</Text>
-          <Text style={s.cardDescription} numberOfLines={2}>
+          <Text style={styles.cardTitle}>{date?.title || 'Rolê sem nome'}</Text>
+          <Text style={styles.cardDescription} numberOfLines={2}>
             {date?.description || 'Vibe real, conexão de verdade.'}
           </Text>
           
-          <View style={s.cardFooter}>
-            <View style={s.vibeBadge}>
+          <View style={styles.cardFooter}>
+            <View style={styles.vibeBadge}>
               <Ionicons name="flash" size={12} color={BrandColors.lilac} />
-              <Text style={s.vibeText}>
+              <Text style={styles.vibeText}>
                 {getToneLabel(date?.apiData?.tone)}
               </Text>
             </View>
             
-            <View style={s.participantInfo}>
+            <View style={styles.participantInfo}>
               <Ionicons name="people" size={14} color={BrandColors.gray} />
-              <Text style={s.participantCount}>
+              <Text style={styles.participantCount}>
                 {date?.attendees || 0}/{date?.maxAttendees || 1}
               </Text>
             </View>
@@ -148,11 +135,11 @@ const DateCard = ({ date, onPress }: any) => {
   );
 };
 
-// Modal de Detalhes com animações fluidas
+// Modal de Detalhes
 const DateDetailsModal = ({ 
   visible, 
   date, 
-  userStatus,
+  userStatus, 
   onClose,
   loadDates
 }: any) => {
@@ -254,7 +241,6 @@ const DateDetailsModal = ({
       );
       
       if (response.ok) {
-        // Atualiza o estado local
         setSubmissions(prev => 
           prev.map(sub => 
             sub.user_id === submission.user_id 
@@ -263,19 +249,16 @@ const DateDetailsModal = ({
           )
         );
         
-        // Animação de confetti (simplificada)
         setTimeout(() => {
           setAcceptedUser(submission);
           setShowChatPrompt(true);
-          
-          // Atualiza a lista principal
           loadDates();
         }, 800);
         
       } else {
         Alert.alert('❌ Não rolou', response.error || 'Deu ruim ao aceitar');
       }
-    } catch (error: any) {
+    } catch (error: any) { // CORRIGIDO: Tipado como any
       Alert.alert('❌ Sem conexão', error.message || 'Servidor offline');
     } finally {
       setIsResponding(false);
@@ -283,16 +266,8 @@ const DateDetailsModal = ({
   };
   
   const handleStartChat = (submission: any) => {
-    router.push({
-      pathname: '/chat',
-      params: {
-        userId: submission.user_id,
-        userName: submission.user_name,
-        dateId: date.id,
-        dateTitle: date.title
-      }
-    });
     onClose();
+    router.push(`/messages/${submission.user_id}?name=${submission.user_name}`);
   };
   
   const handleSaveEdit = async () => {
@@ -314,7 +289,7 @@ const DateDetailsModal = ({
       } else {
         Alert.alert('❌ Erro', response.error);
       }
-    } catch (error) {
+    } catch (error: any) { // CORRIGIDO: Tipado como any
       Alert.alert('❌ Erro', 'Sem conexão');
     } finally {
       setSaving(false);
@@ -342,7 +317,7 @@ const DateDetailsModal = ({
       } else {
         Alert.alert('❌ Erro', response.error);
       }
-    } catch (error) {
+    } catch (error: any) { // CORRIGIDO: Tipado como any
       Alert.alert('❌ Erro', 'Sem conexão');
     } finally {
       setSubmitting(false);
@@ -370,7 +345,7 @@ const DateDetailsModal = ({
               } else {
                 Alert.alert('❌ Erro', response.error);
               }
-            } catch (error) {
+            } catch (error: any) { // CORRIGIDO: Tipado como any
               Alert.alert('❌ Erro', 'Sem conexão');
             }
           }
@@ -383,7 +358,7 @@ const DateDetailsModal = ({
     <Animated.View 
       key={submission.user_id}
       style={[
-        s.submissionItem,
+        styles.submissionItem,
         {
           opacity: fadeAnim,
           transform: [
@@ -397,44 +372,44 @@ const DateDetailsModal = ({
         }
       ]}
     >
-      <View style={s.submissionHeader}>
-        <View style={s.submissionUser}>
+      <View style={styles.submissionHeader}>
+        <View style={styles.submissionUser}>
           {submission.user_photo ? (
-            <Image source={{ uri: submission.user_photo }} style={s.userAvatar} />
+            <Image source={{ uri: submission.user_photo }} style={styles.userAvatar} />
           ) : (
-            <View style={s.userAvatar}>
-              <Text style={s.userAvatarText}>
+            <View style={styles.userAvatar}>
+              <Text style={styles.userAvatarText}>
                 {submission.user_name?.charAt(0) || 'U'}
               </Text>
             </View>
           )}
           <View>
-            <Text style={s.userName}>{submission.user_name || 'Usuário'}</Text>
-            <Text style={s.submissionDate}>
+            <Text style={styles.userName}>{submission.user_name || 'Usuário'}</Text>
+            <Text style={styles.submissionDate}>
               {new Date(submission.submitted_at).toLocaleDateString('pt-BR')}
             </Text>
           </View>
         </View>
         <View style={[
-          s.statusBadge,
-          submission.status === 'accepted' && s.statusAccepted,
-          submission.status === 'rejected' && s.statusRejected,
-          submission.status === 'pending' && s.statusPending
+          styles.statusBadge,
+          submission.status === 'accepted' && styles.statusAccepted,
+          submission.status === 'rejected' && styles.statusRejected,
+          submission.status === 'pending' && styles.statusPending
         ]}>
-          <Text style={s.statusText}>
+          <Text style={styles.statusText}>
             {getStatusLabel(submission.status)}
           </Text>
         </View>
       </View>
       
       {submission.message && (
-        <Text style={s.submissionMessage}>"{submission.message}"</Text>
+        <Text style={styles.submissionMessage}>"{submission.message}"</Text>
       )}
       
       {submission.status === 'pending' && userStatus?.user_status === 'creator' && (
-        <View style={s.submissionActions}>
+        <View style={styles.submissionActions}>
           <TouchableOpacity 
-            style={[s.actionButton, s.acceptButton]}
+            style={[styles.actionButton, styles.acceptButton]}
             onPress={() => handleAcceptSubmission(submission)}
             disabled={isResponding}
           >
@@ -443,7 +418,7 @@ const DateDetailsModal = ({
             ) : (
               <>
                 <Ionicons name="checkmark" size={16} color={Colors.white} />
-                <Text style={s.actionButtonText}>Aceitar</Text>
+                <Text style={styles.actionButtonText}>Aceitar</Text>
               </>
             )}
           </TouchableOpacity>
@@ -452,11 +427,11 @@ const DateDetailsModal = ({
       
       {submission.status === 'accepted' && userStatus?.user_status === 'creator' && (
         <TouchableOpacity 
-          style={s.chatButton}
+          style={styles.chatButton}
           onPress={() => handleStartChat(submission)}
         >
           <Ionicons name="chatbubble" size={16} color={Colors.white} />
-          <Text style={s.chatButtonText}>Conversar</Text>
+          <Text style={styles.chatButtonText}>Conversar</Text>
         </TouchableOpacity>
       )}
     </Animated.View>
@@ -464,15 +439,15 @@ const DateDetailsModal = ({
   
   const renderEditForm = () => (
     <Animated.ScrollView 
-      style={[s.editForm, { opacity: fadeAnim }]}
+      style={[styles.editForm, { opacity: fadeAnim }]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={s.sectionTitle}>Editar rolê</Text>
+      <Text style={styles.sectionTitle}>Editar rolê</Text>
       
-      <View style={s.formGroup}>
-        <Text style={s.label}>Descrição</Text>
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Descrição</Text>
         <TextInput
-          style={s.input}
+          style={styles.input}
           value={editData.description}
           onChangeText={(text) => setEditData({...editData, description: text})}
           placeholder="Qual a vibe do rolê?"
@@ -482,10 +457,10 @@ const DateDetailsModal = ({
         />
       </View>
       
-      <View style={s.formGroup}>
-        <Text style={s.label}>Local</Text>
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Local</Text>
         <TextInput
-          style={s.input}
+          style={styles.input}
           value={editData.location}
           onChangeText={(text) => setEditData({...editData, location: text})}
           placeholder="Onde vai rolar?"
@@ -493,108 +468,15 @@ const DateDetailsModal = ({
         />
       </View>
       
-      <View style={s.formGroup}>
-        <Text style={s.label}>Data e hora</Text>
-        <TextInput
-          style={s.input}
-          value={editData.datetime}
-          onChangeText={(text) => setEditData({...editData, datetime: text})}
-          placeholder="2024-12-31T20:00:00"
-          placeholderTextColor={BrandColors.gray}
-        />
-        <Text style={s.hint}>Formato: 2024-12-31T20:00:00</Text>
-      </View>
-      
-      <View style={s.formGroup}>
-        <Text style={s.label}>Vagas</Text>
-        <TextInput
-          style={s.input}
-          value={editData.max_participants.toString()}
-          onChangeText={(text) => setEditData({...editData, max_participants: parseInt(text) || 1})}
-          keyboardType="numeric"
-          placeholder="1"
-          placeholderTextColor={BrandColors.gray}
-        />
-      </View>
-      
-      <View style={s.formGroup}>
-        <Text style={s.label}>Tipo de rolê</Text>
-        <View style={s.optionsRow}>
-          {['praia', 'bar', 'parque', 'cafe', 'show', 'cinema', 'restaurante', 'outro'].map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={[
-                s.optionButton,
-                editData.type === type && s.optionButtonActive
-              ]}
-              onPress={() => setEditData({...editData, type})}
-            >
-              <Text style={[
-                s.optionText,
-                editData.type === type && s.optionTextActive
-              ]}>
-                {getTypeLabel(type)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-      
-      <View style={s.formGroup}>
-        <Text style={s.label}>Quem paga?</Text>
-        <View style={s.optionsRow}>
-          {['both', 'creator', 'invitee'].map((payment) => (
-            <TouchableOpacity
-              key={payment}
-              style={[
-                s.optionButton,
-                editData.payment === payment && s.optionButtonActive
-              ]}
-              onPress={() => setEditData({...editData, payment})}
-            >
-              <Text style={[
-                s.optionText,
-                editData.payment === payment && s.optionTextActive
-              ]}>
-                {getPaymentLabel(payment)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-      
-      <View style={s.formGroup}>
-        <Text style={s.label}>Vibe</Text>
-        <View style={s.optionsRow}>
-          {['friendship', 'adventure', 'romantic', 'casual'].map((tone) => (
-            <TouchableOpacity
-              key={tone}
-              style={[
-                s.optionButton,
-                editData.tone === tone && s.optionButtonActive
-              ]}
-              onPress={() => setEditData({...editData, tone})}
-            >
-              <Text style={[
-                s.optionText,
-                editData.tone === tone && s.optionTextActive
-              ]}>
-                {getToneLabel(tone)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-      
-      <View style={s.editActions}>
+      <View style={styles.editActions}>
         <TouchableOpacity 
-          style={[s.editButton, s.cancelEditButton]}
+          style={[styles.editButton, styles.cancelEditButton]}
           onPress={() => setIsEditing(false)}
         >
-          <Text style={s.cancelEditText}>Cancelar</Text>
+          <Text style={styles.cancelEditText}>Cancelar</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[s.editButton, s.saveButton]}
+          style={[styles.editButton, styles.saveButton]}
           onPress={handleSaveEdit}
           disabled={saving}
         >
@@ -603,7 +485,7 @@ const DateDetailsModal = ({
           ) : (
             <>
               <Ionicons name="save" size={18} color={Colors.white} />
-              <Text style={s.saveText}>Salvar</Text>
+              <Text style={styles.saveText}>Salvar</Text>
             </>
           )}
         </TouchableOpacity>
@@ -613,51 +495,37 @@ const DateDetailsModal = ({
   
   const renderDateInfo = () => (
     <Animated.ScrollView 
-      style={[s.dateInfo, { opacity: fadeAnim }]}
+      style={[styles.dateInfo, { opacity: fadeAnim }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={s.dateHeader}>
-        <View style={s.dateTimeBadge}>
-          <Text style={s.dateText}>{date?.date || 'EM BREVE'}</Text>
-          <Text style={s.timeText}>{date?.time || ''}</Text>
+      <View style={styles.dateHeader}>
+        <View style={styles.dateTimeBadge}>
+          <Text style={styles.dateText}>{date?.date || 'EM BREVE'}</Text>
+          <Text style={styles.timeText}>{date?.time || ''}</Text>
         </View>
-        <View style={s.locationInfo}>
+        <View style={styles.locationInfo}>
           <Ionicons name="location" size={14} color={BrandColors.gray} />
-          <Text style={s.locationDetail}>{date?.location || 'Local a definir'}</Text>
+          <Text style={styles.locationDetail}>{date?.location || 'Local a definir'}</Text>
         </View>
       </View>
       
-      <Text style={s.detailTitle}>{date?.title || 'Rolê sem nome'}</Text>
-      <Text style={s.detailDescription}>{date?.description || 'Vibe real, conexão de verdade.'}</Text>
+      <Text style={styles.detailTitle}>{date?.title || 'Rolê sem nome'}</Text>
+      <Text style={styles.detailDescription}>{date?.description || 'Vibe real, conexão de verdade.'}</Text>
       
-      <View style={s.infoSection}>
-        <Text style={s.sectionTitle}>📋 Info</Text>
-        <View style={s.infoGrid}>
-          <View style={s.infoItem}>
+      <View style={styles.infoSection}>
+        <Text style={styles.sectionTitle}>📋 Info</Text>
+        <View style={styles.infoGrid}>
+          <View style={styles.infoItem}>
             <Ionicons name="people" size={18} color={BrandColors.lilac} />
-            <Text style={s.infoLabel}>Vagas:</Text>
-            <Text style={s.infoValue}>
+            <Text style={styles.infoLabel}>Vagas:</Text>
+            <Text style={styles.infoValue}>
               {date?.attendees || 0}/{date?.maxAttendees || 1}
             </Text>
           </View>
-          <View style={s.infoItem}>
-            <Ionicons name="cash" size={18} color={BrandColors.lilac} />
-            <Text style={s.infoLabel}>Pagamento:</Text>
-            <Text style={s.infoValue}>
-              {getPaymentLabel(date?.apiData?.payment)}
-            </Text>
-          </View>
-          <View style={s.infoItem}>
-            <Ionicons name="calendar" size={18} color={BrandColors.lilac} />
-            <Text style={s.infoLabel}>Quando:</Text>
-            <Text style={s.infoValue}>
-              {formatFullDate(date?.apiData?.datetime)}
-            </Text>
-          </View>
-          <View style={s.infoItem}>
+          <View style={styles.infoItem}>
             <Ionicons name="flash" size={18} color={BrandColors.lilac} />
-            <Text style={s.infoLabel}>Vibe:</Text>
-            <Text style={s.infoValue}>
+            <Text style={styles.infoLabel}>Vibe:</Text>
+            <Text style={styles.infoValue}>
               {getToneLabel(date?.apiData?.tone)}
             </Text>
           </View>
@@ -665,10 +533,10 @@ const DateDetailsModal = ({
       </View>
       
       {userStatus?.user_status === 'creator' && (
-        <View style={s.submissionsSection}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>👥 Inscrições</Text>
-            <Text style={s.sectionSubtitle}>
+        <View style={styles.submissionsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>👥 Inscrições</Text>
+            <Text style={styles.sectionSubtitle}>
               {submissions.filter(s => s.status === 'pending').length} pendente(s)
             </Text>
           </View>
@@ -676,22 +544,22 @@ const DateDetailsModal = ({
           {loadingSubmissions ? (
             <ActivityIndicator size="small" color={BrandColors.black} />
           ) : submissions.length > 0 ? (
-            <View style={s.submissionsList}>
+            <View style={styles.submissionsList}>
               {submissions.map((sub, index) => renderSubmissionItem(sub, index))}
             </View>
           ) : (
-            <Text style={s.emptySubmissions}>Ninguém se inscreveu ainda</Text>
+            <Text style={styles.emptySubmissions}>Ninguém se inscreveu ainda</Text>
           )}
         </View>
       )}
       
       {userStatus?.user_status !== 'creator' && (
-        <View style={s.participationSection}>
-          <Text style={s.sectionTitle}>Participar</Text>
+        <View style={styles.participationSection}>
+          <Text style={styles.sectionTitle}>Participar</Text>
           
           {userStatus?.user_status === 'accepted' ? (
             <Animated.View 
-              style={[s.statusCardAccepted, {
+              style={[styles.statusCardAccepted, {
                 transform: [{
                   scale: fadeAnim.interpolate({
                     inputRange: [0, 1],
@@ -701,53 +569,40 @@ const DateDetailsModal = ({
               }]}
             >
               <Ionicons name="checkmark-circle" size={24} color={BrandColors.green} />
-              <View style={s.statusContent}>
-                <Text style={s.statusTitleAccepted}>🎉 Aceito!</Text>
-                <Text style={s.statusMessage}>
+              <View style={styles.statusContent}>
+                <Text style={styles.statusTitleAccepted}>🎉 Aceito!</Text>
+                <Text style={styles.statusMessage}>
                   Sua vibe foi aprovada! Você tá confirmado nesse rolê.
-                  O organizador pode entrar em contato com detalhes.
                 </Text>
                 <TouchableOpacity 
-                  style={s.chatButton}
+                  style={styles.chatButton}
                   onPress={() => handleStartChat({ user_id: user?.id, user_name: user?.nome })}
                 >
                   <Ionicons name="chatbubble" size={16} color={Colors.white} />
-                  <Text style={s.chatButtonText}>Conversar com o host</Text>
+                  <Text style={styles.chatButtonText}>Conversar com o host</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
           ) : userStatus?.user_status === 'pending' ? (
-            <View style={s.statusCardPending}>
+            <View style={styles.statusCardPending}>
               <Ionicons name="time" size={24} color={BrandColors.blue} />
-              <View style={s.statusContent}>
-                <Text style={s.statusTitlePending}>⏳ Aguardando</Text>
-                <Text style={s.statusMessage}>
+              <View style={styles.statusContent}>
+                <Text style={styles.statusTitlePending}>⏳ Aguardando</Text>
+                <Text style={styles.statusMessage}>
                   Sua inscrição tá pendente. O organizador vai analisar e você recebe uma resposta.
-                  Pode cancelar se mudar de ideia.
                 </Text>
                 <TouchableOpacity 
-                  style={s.cancelSubmissionButton}
+                  style={styles.cancelSubmissionButton}
                   onPress={handleCancelSubmission}
                 >
                   <Ionicons name="close" size={16} color={BrandColors.coral} />
-                  <Text style={s.cancelSubmissionText}>Cancelar inscrição</Text>
+                  <Text style={styles.cancelSubmissionText}>Cancelar inscrição</Text>
                 </TouchableOpacity>
-              </View>
-            </View>
-          ) : userStatus?.user_status === 'rejected' ? (
-            <View style={s.statusCardRejected}>
-              <Ionicons name="close-circle" size={24} color={BrandColors.coral} />
-              <View style={s.statusContent}>
-                <Text style={s.statusTitleRejected}>❌ Recusado</Text>
-                <Text style={s.statusMessage}>
-                  Não rolou dessa vez. Sem stress! 
-                  Tem outros rolês legais pra curtir.
-                </Text>
               </View>
             </View>
           ) : (
             <Animated.View 
-              style={[s.submissionForm, {
+              style={[styles.submissionForm, {
                 opacity: fadeAnim,
                 transform: [{
                   translateY: slideAnim.interpolate({
@@ -757,12 +612,12 @@ const DateDetailsModal = ({
                 }]
               }]}
             >
-              <Text style={s.submissionHint}>
+              <Text style={styles.submissionHint}>
                 {date?.availableSlots || 0} vaga{date?.availableSlots !== 1 ? 's' : ''} disponível{date?.availableSlots !== 1 ? 's' : ''}.
               </Text>
               
               <TextInput
-                style={s.messageInput}
+                style={styles.messageInput}
                 placeholder="Fala pro organizador porque você quer entrar nesse rolê..."
                 value={message}
                 onChangeText={setMessage}
@@ -771,10 +626,10 @@ const DateDetailsModal = ({
                 maxLength={300}
                 placeholderTextColor={BrandColors.gray}
               />
-              <Text style={s.charCount}>{message.length}/300</Text>
+              <Text style={styles.charCount}>{message.length}/300</Text>
               
               <TouchableOpacity 
-                style={s.submitButton}
+                style={styles.submitButton}
                 onPress={handleSubmitToDate}
                 disabled={!message.trim() || submitting}
               >
@@ -783,7 +638,7 @@ const DateDetailsModal = ({
                 ) : (
                   <>
                     <Ionicons name="send" size={18} color={Colors.white} />
-                    <Text style={s.submitButtonText}>Enviar</Text>
+                    <Text style={styles.submitButtonText}>Enviar</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -801,18 +656,18 @@ const DateDetailsModal = ({
       onRequestClose={onClose}
       transparent={false}
     >
-      <SafeAreaView style={s.modalContainer}>
-        <View style={s.modalHeader}>
-          <TouchableOpacity onPress={onClose} style={s.closeButton}>
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="arrow-back" size={24} color={BrandColors.black} />
           </TouchableOpacity>
-          <Text style={s.modalTitle}>
+          <Text style={styles.modalTitle}>
             {isEditing ? 'Editar rolê' : 'Detalhes'}
           </Text>
           
           {userStatus?.user_status === 'creator' && !isEditing && (
             <TouchableOpacity 
-              style={s.editHeaderButton}
+              style={styles.editHeaderButton}
               onPress={() => setIsEditing(true)}
             >
               <Ionicons name="create" size={20} color={BrandColors.black} />
@@ -824,7 +679,7 @@ const DateDetailsModal = ({
         
         {showChatPrompt && acceptedUser && (
           <Animated.View 
-            style={[s.chatPrompt, {
+            style={[styles.chatPrompt, {
               transform: [{
                 translateY: slideAnim.interpolate({
                   inputRange: [0, 1],
@@ -833,21 +688,21 @@ const DateDetailsModal = ({
               }]
             }]}
           >
-            <View style={s.chatPromptContent}>
+            <View style={styles.chatPromptContent}>
               <Ionicons name="chatbubble-ellipses" size={24} color={BrandColors.lilac} />
-              <View style={s.chatPromptTextContainer}>
-                <Text style={s.chatPromptTitle}>✅ {acceptedUser.user_name} aceito!</Text>
-                <Text style={s.chatPromptMessage}>
+              <View style={styles.chatPromptTextContainer}>
+                <Text style={styles.chatPromptTitle}>✅ {acceptedUser.user_name} aceito!</Text>
+                <Text style={styles.chatPromptMessage}>
                   Chama pra conversar e combinar os detalhes.
                 </Text>
               </View>
             </View>
             <TouchableOpacity 
-              style={s.chatPromptButton}
+              style={styles.chatPromptButton}
               onPress={() => handleStartChat(acceptedUser)}
             >
               <Ionicons name="chatbubble" size={18} color={Colors.white} />
-              <Text style={s.chatPromptButtonText}>Conversar agora</Text>
+              <Text style={styles.chatPromptButtonText}>Conversar agora</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -856,7 +711,7 @@ const DateDetailsModal = ({
   );
 };
 
-// Componente principal corrigido
+// Componente principal
 export default function HomeScreen() {
   const { isAuthenticated, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -886,9 +741,7 @@ export default function HomeScreen() {
       if (response.ok && response.dates) {
         const datesWithStatus = await Promise.all(
           response.dates.map(async (apiDate: any, index: number) => {
-            // VERIFICAÇÃO DE SEGURANÇA
             if (!apiDate || typeof apiDate !== 'object') {
-              console.warn(`Date inválido no índice ${index}`);
               return null;
             }
             
@@ -907,13 +760,12 @@ export default function HomeScreen() {
               }
             }
             
-            // FILTRO POR ABA - CORRIGIDO
             if (activeTab === 'submitted' && userStatus === 'accepted') {
-              return null; // Não mostra aceitos na aba "submetidos"
+              return null;
             }
             
             if (activeTab === 'accepted' && userStatus !== 'accepted') {
-              return null; // Mostra apenas aceitos na aba "aceitos"
+              return null;
             }
             
             const city = apiDate.location?.split(',')[0]?.trim() || 'Local indefinido';
@@ -942,7 +794,6 @@ export default function HomeScreen() {
           })
         );
         
-        // Filtra valores nulos antes de definir o estado
         const validDates = datesWithStatus.filter(date => date !== null);
         setDates(validDates);
         filterDates(validDates, filters);
@@ -953,7 +804,6 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
       
-      // Animação de entrada
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
@@ -961,12 +811,11 @@ export default function HomeScreen() {
         easing: Easing.out(Easing.cubic)
       }).start();
     }
-  }, [isAuthenticated, user?.id, activeTab]); // activeTab como dependência
+  }, [isAuthenticated, user?.id, activeTab]);
   
   const filterDates = useCallback((datesList: any[], filterOptions: typeof filters) => {
     let filtered = [...datesList];
     
-    // Aplicar filtros de cidade e tipo
     if (filterOptions.city) {
       filtered = filtered.filter(date => 
         date.city.toLowerCase().includes(filterOptions.city.toLowerCase())
@@ -986,7 +835,7 @@ export default function HomeScreen() {
     if (isAuthenticated) {
       loadDates();
     }
-  }, [isAuthenticated, activeTab]); // Recarrega quando muda a aba
+  }, [isAuthenticated, activeTab]);
   
   useEffect(() => {
     filterDates(dates, filters);
@@ -1022,26 +871,26 @@ export default function HomeScreen() {
   
   if (loading && !refreshing) {
     return (
-      <View style={s.loadingScreen}>
+      <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color={BrandColors.green} />
-        <Text style={s.loadingText}>Carregando rolês...</Text>
+        <Text style={styles.loadingText}>Carregando rolês...</Text>
       </View>
     );
   }
   
   return (
-    <SafeAreaView style={s.container}>
-      <Animated.View style={[s.header, { opacity: fadeAnim }]}>
-        <Text style={s.logo}>psique</Text>
+    <SafeAreaView style={styles.container}>
+      <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+        <Text style={styles.logo}>psique</Text>
         <TouchableOpacity 
-          style={s.profileButton}
+          style={styles.profileButton}
           onPress={() => router.push('/profile')}
         >
           {user?.foto_perfil ? (
-            <Image source={{ uri: user.foto_perfil }} style={s.profileAvatarImage} />
+            <Image source={{ uri: user.foto_perfil }} style={styles.profileAvatarImage} />
           ) : (
-            <View style={s.profileAvatar}>
-              <Text style={s.profileInitial}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileInitial}>
                 {user?.nome?.charAt(0).toUpperCase() || 'U'}
               </Text>
             </View>
@@ -1050,17 +899,17 @@ export default function HomeScreen() {
       </Animated.View>
       
       {/* Tabs */}
-      <Animated.View style={[s.tabsContainer, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.tabsContainer, { opacity: fadeAnim }]}>
         <TouchableOpacity 
-          style={[s.tab, activeTab === 'all' && s.tabActive]}
+          style={[styles.tab, activeTab === 'all' && styles.tabActive]}
           onPress={() => setActiveTab('all')}
         >
-          <Text style={[s.tabText, activeTab === 'all' && s.tabTextActive]}>
+          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
             Todos
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[s.tab, activeTab === 'submitted' && s.tabActive]}
+          style={[styles.tab, activeTab === 'submitted' && styles.tabActive]}
           onPress={() => setActiveTab('submitted')}
         >
           <Ionicons 
@@ -1068,12 +917,12 @@ export default function HomeScreen() {
             size={16} 
             color={activeTab === 'submitted' ? BrandColors.green : BrandColors.gray} 
           />
-          <Text style={[s.tabText, activeTab === 'submitted' && s.tabTextActive]}>
+          <Text style={[styles.tabText, activeTab === 'submitted' && styles.tabTextActive]}>
             Submetidos
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[s.tab, activeTab === 'accepted' && s.tabActive]}
+          style={[styles.tab, activeTab === 'accepted' && styles.tabActive]}
           onPress={() => setActiveTab('accepted')}
         >
           <Ionicons 
@@ -1081,34 +930,34 @@ export default function HomeScreen() {
             size={16} 
             color={activeTab === 'accepted' ? BrandColors.green : BrandColors.gray} 
           />
-          <Text style={[s.tabText, activeTab === 'accepted' && s.tabTextActive]}>
+          <Text style={[styles.tabText, activeTab === 'accepted' && styles.tabTextActive]}>
             Aceitos
           </Text>
         </TouchableOpacity>
       </Animated.View>
       
       {/* Filtros */}
-      <Animated.View style={[s.filterSection, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.filterSection, { opacity: fadeAnim }]}>
         <TouchableOpacity 
-          style={s.filterToggle}
+          style={styles.filterToggle}
           onPress={() => setFilters(prev => ({ ...prev, showFilters: !prev.showFilters }))}
         >
           <Ionicons name="filter" size={18} color={BrandColors.green} />
-          <Text style={s.filterToggleText}>
+          <Text style={styles.filterToggleText}>
             {filters.showFilters ? 'Ocultar' : 'Filtrar'}
           </Text>
         </TouchableOpacity>
         
         {(filters.city || filters.type) && (
-          <TouchableOpacity style={s.clearFilterButton} onPress={clearFilters}>
-            <Text style={s.clearFilterText}>Limpar</Text>
+          <TouchableOpacity style={styles.clearFilterButton} onPress={clearFilters}>
+            <Text style={styles.clearFilterText}>Limpar</Text>
           </TouchableOpacity>
         )}
       </Animated.View>
       
       {filters.showFilters && (
         <Animated.View 
-          style={[s.filtersContainer, { 
+          style={[styles.filtersContainer, { 
             opacity: fadeAnim,
             transform: [{
               translateY: fadeAnim.interpolate({
@@ -1118,10 +967,10 @@ export default function HomeScreen() {
             }]
           }]}
         >
-          <View style={s.filterInputContainer}>
+          <View style={styles.filterInputContainer}>
             <Ionicons name="location" size={18} color={BrandColors.lilac} />
             <TextInput
-              style={s.filterInput}
+              style={styles.filterInput}
               placeholder="Cidade..."
               value={filters.city}
               onChangeText={(text) => setFilters(prev => ({ ...prev, city: text }))}
@@ -1129,10 +978,10 @@ export default function HomeScreen() {
             />
           </View>
           
-          <View style={s.filterInputContainer}>
+          <View style={styles.filterInputContainer}>
             <Ionicons name="pricetag" size={18} color={BrandColors.lilac} />
             <TextInput
-              style={s.filterInput}
+              style={styles.filterInput}
               placeholder="Tipo (praia, bar, etc)..."
               value={filters.type}
               onChangeText={(text) => setFilters(prev => ({ ...prev, type: text }))}
@@ -1140,13 +989,13 @@ export default function HomeScreen() {
             />
           </View>
           
-          <View style={s.typeChips}>
+          <View style={styles.typeChips}>
             {dateTypes.map((type) => (
               <TouchableOpacity
                 key={type}
                 style={[
-                  s.typeChip,
-                  filters.type === type && s.typeChipActive
+                  styles.typeChip,
+                  filters.type === type && styles.typeChipActive
                 ]}
                 onPress={() => setFilters(prev => ({ 
                   ...prev, 
@@ -1154,8 +1003,8 @@ export default function HomeScreen() {
                 }))}
               >
                 <Text style={[
-                  s.typeChipText,
-                  filters.type === type && s.typeChipTextActive
+                  styles.typeChipText,
+                  filters.type === type && styles.typeChipTextActive
                 ]}>
                   {getTypeLabel(type)}
                 </Text>
@@ -1166,7 +1015,7 @@ export default function HomeScreen() {
       )}
       
       <Animated.ScrollView
-        style={[s.feed, { opacity: fadeAnim }]}
+        style={[styles.feed, { opacity: fadeAnim }]}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -1177,12 +1026,12 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={s.greeting}>
-          <Text style={s.greetingText}>Oi, {user?.nome?.split(' ')[0] || 'amigo'} 👋</Text>
-          <Text style={s.greetingSub}>Rolês com vibe real</Text>
+        <View style={styles.greeting}>
+          <Text style={styles.greetingText}>Oi, {user?.nome?.split(' ')[0] || 'amigo'} 👋</Text>
+          <Text style={styles.greetingSub}>Rolês com vibe real</Text>
         </View>
         
-        <View style={s.quickActions}>
+        <View style={styles.quickActions}>
           <QuickAction 
             icon="add-circle" 
             label="Criar" 
@@ -1190,27 +1039,27 @@ export default function HomeScreen() {
             onPress={() => router.push('/create-date')} 
           />
           <QuickAction 
-            icon="heart" 
-            label="Conexões" 
-            color={BrandColors.lilac}
-            onPress={() => router.push('/connections')} 
+            icon="chatbubble" 
+            label="Chat" 
+            color={BrandColors.peach}
+            onPress={() => router.push('/messages')} 
           />
           <QuickAction 
             icon="calendar" 
             label="Meus" 
-            color={BrandColors.peach}
-            onPress={() => router.push('/my-dates')} 
+            color={BrandColors.lilac}
+            onPress={() => setActiveTab('submitted')} 
           />
         </View>
         
-        <View style={s.datesSection}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>
+        <View style={styles.datesSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
               {activeTab === 'all' && 'Rolês próximos'}
               {activeTab === 'submitted' && 'Submetidos'}
               {activeTab === 'accepted' && 'Confirmados'}
             </Text>
-            <Text style={s.sectionSubtitle}>
+            <Text style={styles.sectionSubtitle}>
               {filteredDates.length} encontro{filteredDates.length !== 1 ? 's' : ''}
             </Text>
           </View>
@@ -1225,7 +1074,7 @@ export default function HomeScreen() {
             ))
           ) : (
             <Animated.View 
-              style={[s.emptyState, { opacity: fadeAnim }]}
+              style={[styles.emptyState, { opacity: fadeAnim }]}
             >
               <Ionicons 
                 name={
@@ -1236,35 +1085,35 @@ export default function HomeScreen() {
                 size={60} 
                 color={BrandColors.lilac} 
               />
-              <Text style={s.emptyTitle}>
+              <Text style={styles.emptyTitle}>
                 {activeTab === 'submitted' ? 'Nenhum submit ainda' :
                  activeTab === 'accepted' ? 'Nenhum rolê aceito' :
                  'Sem rolês por aqui'}
               </Text>
-              <Text style={s.emptyText}>
+              <Text style={styles.emptyText}>
                 {activeTab === 'submitted' ? 'Encontre um rolê legal e manda ver!' :
                  activeTab === 'accepted' ? 'Suba em mais rolês e aguarde as confirmações' :
                  'Cria o primeiro rolê na sua área!'}
               </Text>
               {activeTab === 'all' && (
                 <TouchableOpacity 
-                  style={s.createButton}
+                  style={styles.createButton}
                   onPress={() => router.push('/create-date')}
                 >
-                  <Text style={s.createButtonText}>Criar meu rolê</Text>
+                  <Text style={styles.createButtonText}>Criar meu rolê</Text>
                 </TouchableOpacity>
               )}
             </Animated.View>
           )}
         </View>
         
-        <View style={s.bottomSpacer} />
+        <View style={styles.bottomSpacer} />
       </Animated.ScrollView>
       
-      <View style={s.bottomNav}>
+      <View style={styles.bottomNav}>
         <NavItem icon="home" label="Início" active color={BrandColors.green} />
         <NavItem icon="compass" label="Explorar" onPress={() => router.push('/explore')} color={BrandColors.lilac} />
-        <NavItem icon="chatbubble" label="Chat" onPress={() => router.push('/chat')} color={BrandColors.peach} />
+        <NavItem icon="chatbubble" label="Chat" onPress={() => router.push('/messages')} color={BrandColors.peach} />
         <NavItem icon="person" label="Perfil" onPress={() => router.push('/profile')} color={BrandColors.blue} />
       </View>
       
@@ -1307,10 +1156,10 @@ const QuickAction = ({ icon, label, color, onPress }: any) => {
   };
 
   return (
-    <TouchableOpacity style={s.quickAction} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+    <TouchableOpacity style={styles.quickAction} onPressIn={handlePressIn} onPressOut={handlePressOut}>
       <Animated.View 
         style={[
-          s.quickIcon, 
+          styles.quickIcon, 
           { 
             backgroundColor: color || BrandColors.green,
             transform: [{ scale: scaleAnim }]
@@ -1319,7 +1168,7 @@ const QuickAction = ({ icon, label, color, onPress }: any) => {
       >
         <Ionicons name={icon} size={24} color={Colors.white} />
       </Animated.View>
-      <Text style={s.quickLabel}>{label}</Text>
+      <Text style={styles.quickLabel}>{label}</Text>
     </TouchableOpacity>
   );
 };
@@ -1347,11 +1196,11 @@ const NavItem = ({ icon, label, active, color, onPress }: any) => {
   };
 
   return (
-    <TouchableOpacity style={s.navItem} onPress={handlePress}>
+    <TouchableOpacity style={styles.navItem} onPress={handlePress}>
       <Animated.View 
         style={[
-          s.navIconContainer, 
-          active && s.navIconContainerActive,
+          styles.navIconContainer, 
+          active && styles.navIconContainerActive,
           { transform: [{ scale: scaleAnim }] }
         ]}
       >
@@ -1362,8 +1211,8 @@ const NavItem = ({ icon, label, active, color, onPress }: any) => {
         />
       </Animated.View>
       <Text style={[
-        s.navLabel, 
-        active && s.navLabelActive,
+        styles.navLabel, 
+        active && styles.navLabelActive,
         active && { color: color || BrandColors.green }
       ]}>
         {label}
@@ -1500,948 +1349,3 @@ const calculateAvailableSlots = (date: any) => {
   
   return Math.max(0, maxParticipants - totalOccupied);
 };
-
-// Estilos atualizados com mais cores e fluidez
-const s = StyleSheet.create({
-  // Layout
-  container: { 
-    flex: 1, 
-    backgroundColor: BrandColors.offWhite 
-  },
-  loadingScreen: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: BrandColors.offWhite 
-  },
-  loadingText: { 
-    marginTop: 12, 
-    fontSize: 16, 
-    color: BrandColors.gray 
-  },
-  
-  // Header
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    paddingHorizontal: 20, 
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 10 
-  },
-  logo: { 
-    fontSize: 32, 
-    fontWeight: '800', 
-    color: BrandColors.black,
-    fontFamily: 'Montserrat-Bold',
-    letterSpacing: -0.5
-  },
-  profileButton: { 
-    padding: 4 
-  },
-  profileAvatar: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20,
-    backgroundColor: BrandColors.green, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: BrandColors.lilac + '30'
-  },
-  profileAvatarImage: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: BrandColors.lilac + '30'
-  },
-  profileInitial: { 
-    color: Colors.white, 
-    fontSize: 18, 
-    fontWeight: '700' 
-  },
-  
-  // Tabs
-  tabsContainer: { 
-    flexDirection: 'row', 
-    paddingHorizontal: 20, 
-    paddingVertical: 12,
-    borderBottomWidth: 1, 
-    borderBottomColor: BrandColors.gray + '20'
-  },
-  tab: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    alignItems: 'center',
-    justifyContent: 'center', 
-    gap: 6, 
-    paddingVertical: 8,
-    borderRadius: 8
-  },
-  tabActive: { 
-    backgroundColor: BrandColors.green + '15'
-  },
-  tabText: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: BrandColors.gray 
-  },
-  tabTextActive: { 
-    color: BrandColors.green, 
-    fontWeight: '700' 
-  },
-  
-  // Filtros
-  filterSection: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between',
-    alignItems: 'center', 
-    paddingHorizontal: 20, 
-    paddingVertical: 12 
-  },
-  filterToggle: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6,
-    padding: 8, 
-    backgroundColor: BrandColors.green + '15', 
-    borderRadius: 8 
-  },
-  filterToggleText: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: BrandColors.green 
-  },
-  clearFilterButton: { 
-    paddingHorizontal: 12, 
-    paddingVertical: 6,
-    backgroundColor: BrandColors.lilac + '15', 
-    borderRadius: 6 
-  },
-  clearFilterText: { 
-    fontSize: 13, 
-    fontWeight: '500', 
-    color: BrandColors.lilac 
-  },
-  filtersContainer: { 
-    paddingHorizontal: 20, 
-    paddingBottom: 16,
-    backgroundColor: BrandColors.offWhite 
-  },
-  filterInputContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center',
-    backgroundColor: BrandColors.gray + '10', 
-    borderRadius: 8,
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    marginBottom: 8 
-  },
-  filterInput: { 
-    flex: 1, 
-    marginLeft: 8, 
-    fontSize: 14,
-    color: BrandColors.black, 
-    padding: 0 
-  },
-  typeChips: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 8, 
-    marginTop: 8 
-  },
-  typeChip: { 
-    paddingHorizontal: 12, 
-    paddingVertical: 6,
-    backgroundColor: BrandColors.gray + '10', 
-    borderRadius: 20 
-  },
-  typeChipActive: { 
-    backgroundColor: BrandColors.lilac 
-  },
-  typeChipText: { 
-    fontSize: 12, 
-    fontWeight: '500', 
-    color: BrandColors.gray 
-  },
-  typeChipTextActive: { 
-    color: Colors.white 
-  },
-  
-  // Feed
-  feed: { 
-    flex: 1 
-  },
-  greeting: { 
-    paddingHorizontal: 20, 
-    paddingVertical: 20 
-  },
-  greetingText: { 
-    fontSize: 32, 
-    fontWeight: '800', 
-    color: BrandColors.black,
-    marginBottom: 4, 
-    fontFamily: 'Montserrat-Bold' 
-  },
-  greetingSub: { 
-    fontSize: 16, 
-    color: BrandColors.lilac,
-    fontWeight: '500'
-  },
-  
-  // Quick Actions
-  quickActions: { 
-    flexDirection: 'row', 
-    paddingHorizontal: 20,
-    marginBottom: 24, 
-    gap: 16 
-  },
-  quickAction: { 
-    alignItems: 'center', 
-    flex: 1 
-  },
-  quickIcon: { 
-    width: 56, 
-    height: 56, 
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center', 
-    marginBottom: 8 
-  },
-  quickLabel: { 
-    fontSize: 13, 
-    color: BrandColors.black, 
-    fontWeight: '600' 
-  },
-  
-  // Dates Section
-  datesSection: { 
-    paddingHorizontal: 20, 
-    paddingBottom: 100 
-  },
-  sectionHeader: { 
-    marginBottom: 20 
-  },
-  sectionTitle: { 
-    fontSize: 20, 
-    fontWeight: '800', 
-    color: BrandColors.black,
-    marginBottom: 4, 
-    fontFamily: 'Montserrat-Bold' 
-  },
-  sectionSubtitle: { 
-    fontSize: 14, 
-    color: BrandColors.lilac,
-    fontWeight: '500'
-  },
-  
-  // Date Card
-  dateCard: {
-    backgroundColor: Colors.white, 
-    borderRadius: 16,
-    overflow: 'hidden', 
-    marginBottom: 16,
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '20',
-    shadowColor: BrandColors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2
-  },
-  cardHeader: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between',
-    alignItems: 'center', 
-    padding: 16, 
-    backgroundColor: BrandColors.offWhite
-  },
-  dateBadge: { 
-    alignItems: 'flex-start' 
-  },
-  dateDay: { 
-    fontSize: 14, 
-    fontWeight: '800', 
-    color: BrandColors.black,
-    textTransform: 'uppercase'
-  },
-  dateTime: { 
-    fontSize: 13, 
-    color: BrandColors.lilac, 
-    marginTop: 2 
-  },
-  userStatusBadge: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4,
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    borderRadius: 12 
-  },
-  userStatusText: { 
-    fontSize: 11, 
-    fontWeight: '600', 
-    textTransform: 'uppercase' 
-  },
-  imageContainer: { 
-    position: 'relative' 
-  },
-  cardImage: { 
-    width: '100%', 
-    height: 180 
-  },
-  typeBadge: { 
-    position: 'absolute', 
-    top: 12, 
-    left: 12,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4,
-    backgroundColor: BrandColors.black + 'CC', 
-    paddingHorizontal: 10,
-    paddingVertical: 6, 
-    borderRadius: 20 
-  },
-  typeText: { 
-    fontSize: 12, 
-    fontWeight: '600', 
-    color: Colors.white 
-  },
-  cardContent: { 
-    padding: 16 
-  },
-  locationRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4, 
-    marginBottom: 8 
-  },
-  locationText: { 
-    fontSize: 13, 
-    color: BrandColors.lilac 
-  },
-  cardTitle: { 
-    fontSize: 20, 
-    fontWeight: '800', 
-    color: BrandColors.black, 
-    marginBottom: 8 
-  },
-  cardDescription: { 
-    fontSize: 15, 
-    color: BrandColors.gray, 
-    lineHeight: 22, 
-    marginBottom: 16 
-  },
-  cardFooter: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center' 
-  },
-  vibeBadge: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4,
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    backgroundColor: BrandColors.lilac + '15', 
-    borderRadius: 6 
-  },
-  vibeText: { 
-    fontSize: 12, 
-    color: BrandColors.lilac, 
-    fontWeight: '500' 
-  },
-  participantInfo: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4 
-  },
-  participantCount: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: BrandColors.black 
-  },
-  
-  // Empty State
-  emptyState: { 
-    alignItems: 'center', 
-    paddingVertical: 60, 
-    paddingHorizontal: 20 
-  },
-  emptyTitle: { 
-    fontSize: 20, 
-    fontWeight: '800', 
-    color: BrandColors.black,
-    marginTop: 16, 
-    marginBottom: 8 
-  },
-  emptyText: { 
-    fontSize: 15, 
-    color: BrandColors.gray, 
-    textAlign: 'center', 
-    marginBottom: 24, 
-    lineHeight: 22 
-  },
-  createButton: { 
-    backgroundColor: BrandColors.green, 
-    paddingHorizontal: 28, 
-    paddingVertical: 14, 
-    borderRadius: 10 
-  },
-  createButtonText: { 
-    color: Colors.white, 
-    fontSize: 16, 
-    fontWeight: '700' 
-  },
-  
-  // Bottom Navigation
-  bottomNav: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-around',
-    alignItems: 'center', 
-    paddingHorizontal: 20, 
-    paddingVertical: 16,
-    borderTopWidth: 1, 
-    borderTopColor: BrandColors.gray + '20',
-    backgroundColor: Colors.white, 
-    position: 'absolute',
-    bottom: 0, 
-    left: 0, 
-    right: 0, 
-    zIndex: 1000 
-  },
-  navItem: { 
-    alignItems: 'center', 
-    paddingHorizontal: 12 
-  },
-  navIconContainer: { 
-    width: 44, 
-    height: 44, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    borderRadius: 12 
-  },
-  navIconContainerActive: { 
-    backgroundColor: BrandColors.green + '15' 
-  },
-  navLabel: { 
-    fontSize: 11, 
-    color: BrandColors.gray, 
-    fontWeight: '500', 
-    marginTop: 6 
-  },
-  navLabelActive: { 
-    color: BrandColors.green, 
-    fontWeight: '600' 
-  },
-  bottomSpacer: { 
-    height: 100 
-  },
-  
-  // Modal
-  modalContainer: { 
-    flex: 1, 
-    backgroundColor: BrandColors.offWhite 
-  },
-  modalHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between',
-    alignItems: 'center', 
-    paddingHorizontal: 20,
-    paddingVertical: 16, 
-    borderBottomWidth: 1,
-    borderBottomColor: BrandColors.gray + '20', 
-    backgroundColor: Colors.white 
-  },
-  modalTitle: { 
-    fontSize: 18, 
-    fontWeight: '800', 
-    color: BrandColors.black 
-  },
-  closeButton: { 
-    padding: 4 
-  },
-  editHeaderButton: { 
-    padding: 8 
-  },
-  
-  // Date Info
-  dateInfo: { 
-    flex: 1, 
-    paddingBottom: 20 
-  },
-  dateHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between',
-    alignItems: 'flex-start', 
-    padding: 20,
-    backgroundColor: Colors.white, 
-    borderBottomWidth: 1,
-    borderBottomColor: BrandColors.gray + '20'
-  },
-  dateTimeBadge: { 
-    backgroundColor: BrandColors.green + '15', 
-    paddingHorizontal: 12,
-    paddingVertical: 8, 
-    borderRadius: 8 
-  },
-  dateText: { 
-    fontSize: 14, 
-    fontWeight: '800', 
-    color: BrandColors.green 
-  },
-  timeText: { 
-    fontSize: 13, 
-    color: BrandColors.lilac, 
-    marginTop: 2 
-  },
-  locationInfo: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    flex: 1, 
-    marginLeft: 12 
-  },
-  locationDetail: { 
-    fontSize: 14, 
-    color: BrandColors.gray, 
-    flex: 1 
-  },
-  detailTitle: { 
-    fontSize: 28, 
-    fontWeight: '800', 
-    color: BrandColors.black, 
-    marginHorizontal: 20, 
-    marginVertical: 16 
-  },
-  detailDescription: { 
-    fontSize: 16, 
-    color: BrandColors.gray, 
-    lineHeight: 24, 
-    marginHorizontal: 20, 
-    marginBottom: 24 
-  },
-  
-  // Info Section
-  infoSection: { 
-    marginHorizontal: 20, 
-    marginBottom: 24 
-  },
-  sectionTitle: { 
-    fontSize: 18, 
-    fontWeight: '800', 
-    color: BrandColors.black,
-    marginBottom: 12
-  },
-  infoGrid: { 
-    backgroundColor: Colors.white, 
-    borderRadius: 16,
-    padding: 16, 
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '20'
-  },
-  infoItem: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    marginBottom: 12, 
-    gap: 12 
-  },
-  infoLabel: { 
-    fontSize: 14, 
-    color: BrandColors.gray, 
-    fontWeight: '500', 
-    minWidth: 80 
-  },
-  infoValue: { 
-    fontSize: 14, 
-    color: BrandColors.black, 
-    flex: 1 
-  },
-  
-  // Submissions
-  submissionsSection: { 
-    marginHorizontal: 20, 
-    marginBottom: 24 
-  },
-  sectionHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 12 
-  },
-  sectionSubtitle: { 
-    fontSize: 14, 
-    color: BrandColors.green, 
-    fontWeight: '600' 
-  },
-  submissionsList: { 
-    gap: 8 
-  },
-  submissionItem: { 
-    backgroundColor: Colors.white, 
-    borderRadius: 16,
-    padding: 16, 
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '20'
-  },
-  submissionHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 8 
-  },
-  submissionUser: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8 
-  },
-  userAvatar: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    backgroundColor: BrandColors.lilac, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  userAvatarText: { 
-    color: Colors.white, 
-    fontSize: 16, 
-    fontWeight: '600' 
-  },
-  userName: { 
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: BrandColors.black 
-  },
-  submissionDate: { 
-    fontSize: 12, 
-    color: BrandColors.gray 
-  },
-  statusBadge: { 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    borderRadius: 6 
-  },
-  statusAccepted: { 
-    backgroundColor: BrandColors.green + '20' 
-  },
-  statusRejected: { 
-    backgroundColor: BrandColors.coral + '20' 
-  },
-  statusPending: { 
-    backgroundColor: BrandColors.blue + '20' 
-  },
-  statusText: { 
-    fontSize: 11, 
-    fontWeight: '600', 
-    textTransform: 'uppercase' 
-  },
-  submissionMessage: { 
-    fontSize: 14, 
-    color: BrandColors.gray, 
-    fontStyle: 'italic', 
-    marginBottom: 8, 
-    lineHeight: 20 
-  },
-  submissionActions: { 
-    flexDirection: 'row', 
-    gap: 8, 
-    marginTop: 8 
-  },
-  actionButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    borderRadius: 8, 
-    gap: 4, 
-    flex: 1 
-  },
-  acceptButton: { 
-    backgroundColor: BrandColors.green 
-  },
-  actionButtonText: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: Colors.white 
-  },
-  chatButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    backgroundColor: BrandColors.green, 
-    paddingHorizontal: 12, 
-    paddingVertical: 8,
-    borderRadius: 8, 
-    gap: 6, 
-    marginTop: 8 
-  },
-  chatButtonText: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: Colors.white 
-  },
-  emptySubmissions: { 
-    fontSize: 14, 
-    color: BrandColors.gray, 
-    textAlign: 'center',
-    padding: 20, 
-    backgroundColor: Colors.white, 
-    borderRadius: 16,
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '20'
-  },
-  
-  // Participation
-  participationSection: { 
-    marginHorizontal: 20, 
-    marginBottom: 24 
-  },
-  statusCardAccepted: { 
-    flexDirection: 'row', 
-    backgroundColor: BrandColors.green + '10',
-    padding: 16, 
-    borderRadius: 16, 
-    borderWidth: 1,
-    borderColor: BrandColors.green, 
-    gap: 12 
-  },
-  statusCardPending: { 
-    flexDirection: 'row', 
-    backgroundColor: BrandColors.blue + '10',
-    padding: 16, 
-    borderRadius: 16, 
-    borderWidth: 1,
-    borderColor: BrandColors.blue, 
-    gap: 12 
-  },
-  statusCardRejected: { 
-    flexDirection: 'row', 
-    backgroundColor: BrandColors.coral + '10',
-    padding: 16, 
-    borderRadius: 16, 
-    borderWidth: 1,
-    borderColor: BrandColors.coral, 
-    gap: 12 
-  },
-  statusContent: { 
-    flex: 1 
-  },
-  statusTitleAccepted: { 
-    fontSize: 16, 
-    fontWeight: '800', 
-    color: BrandColors.green, 
-    marginBottom: 4 
-  },
-  statusTitlePending: { 
-    fontSize: 16, 
-    fontWeight: '800', 
-    color: BrandColors.blue, 
-    marginBottom: 4 
-  },
-  statusTitleRejected: { 
-    fontSize: 16, 
-    fontWeight: '800', 
-    color: BrandColors.coral, 
-    marginBottom: 4 
-  },
-  statusMessage: { 
-    fontSize: 14, 
-    color: BrandColors.gray, 
-    lineHeight: 20 
-  },
-  cancelSubmissionButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4, 
-    marginTop: 8, 
-    paddingVertical: 4 
-  },
-  cancelSubmissionText: { 
-    fontSize: 14, 
-    color: BrandColors.coral, 
-    fontWeight: '500' 
-  },
-  
-  // Submission Form
-  submissionForm: { 
-    backgroundColor: Colors.white, 
-    padding: 16, 
-    borderRadius: 16, 
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '20' 
-  },
-  submissionHint: { 
-    fontSize: 14, 
-    color: BrandColors.lilac, 
-    marginBottom: 12 
-  },
-  messageInput: { 
-    backgroundColor: BrandColors.gray + '10', 
-    borderRadius: 8, 
-    padding: 12,
-    fontSize: 15, 
-    color: BrandColors.black, 
-    minHeight: 100,
-    textAlignVertical: 'top', 
-    marginBottom: 8 
-  },
-  charCount: { 
-    fontSize: 12, 
-    color: BrandColors.gray, 
-    textAlign: 'right' 
-  },
-  submitButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    backgroundColor: BrandColors.green, 
-    paddingVertical: 14, 
-    borderRadius: 8,
-    gap: 8, 
-    marginTop: 16 
-  },
-  submitButtonText: { 
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: Colors.white 
-  },
-  
-  // Edit Form
-  editForm: { 
-    flex: 1, 
-    padding: 20, 
-    paddingBottom: 40 
-  },
-  formGroup: { 
-    marginBottom: 16 
-  },
-  label: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: BrandColors.black, 
-    marginBottom: 8 
-  },
-  input: { 
-    backgroundColor: Colors.white, 
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '30',
-    borderRadius: 8, 
-    padding: 12, 
-    fontSize: 15, 
-    color: BrandColors.black 
-  },
-  hint: { 
-    fontSize: 12, 
-    color: BrandColors.gray, 
-    marginTop: 4 
-  },
-  optionsRow: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 8 
-  },
-  optionButton: { 
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    borderRadius: 8,
-    backgroundColor: Colors.white, 
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '30' 
-  },
-  optionButtonActive: { 
-    backgroundColor: BrandColors.green, 
-    borderColor: BrandColors.green 
-  },
-  optionText: { 
-    fontSize: 13, 
-    color: BrandColors.gray, 
-    fontWeight: '500' 
-  },
-  optionTextActive: { 
-    color: Colors.white 
-  },
-  editActions: { 
-    flexDirection: 'row', 
-    gap: 12, 
-    marginTop: 24 
-  },
-  editButton: { 
-    flex: 1, 
-    paddingVertical: 14, 
-    borderRadius: 8,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 8 
-  },
-  cancelEditButton: { 
-    backgroundColor: Colors.white, 
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '30' 
-  },
-  cancelEditText: { 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: BrandColors.black 
-  },
-  saveButton: { 
-    backgroundColor: BrandColors.green 
-  },
-  saveText: { 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: Colors.white 
-  },
-  
-  // Chat Prompt
-  chatPrompt: { 
-    margin: 20, 
-    backgroundColor: Colors.white, 
-    borderRadius: 16,
-    padding: 16, 
-    borderWidth: 1, 
-    borderColor: BrandColors.gray + '20',
-    shadowColor: BrandColors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3 
-  },
-  chatPromptContent: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    gap: 12, 
-    marginBottom: 16 
-  },
-  chatPromptTextContainer: { 
-    flex: 1 
-  },
-  chatPromptTitle: { 
-    fontSize: 16, 
-    fontWeight: '800', 
-    color: BrandColors.black, 
-    marginBottom: 4 
-  },
-  chatPromptMessage: { 
-    fontSize: 14, 
-    color: BrandColors.gray, 
-    lineHeight: 20 
-  },
-  chatPromptButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    backgroundColor: BrandColors.lilac, 
-    paddingVertical: 14, 
-    borderRadius: 8, 
-    gap: 8 
-  },
-  chatPromptButtonText: { 
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: Colors.white 
-  },
-});
