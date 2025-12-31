@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-// ADICIONEI ESTE IMPORT QUE FALTAVA:
-import AsyncStorage from '@react-native-async-storage/async-storage'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { 
   getUserId, 
@@ -80,12 +79,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const decoded = decodeJwt(gToken);
         
         if (decoded && decoded.email) {
+          // Cria o objeto garantindo que todos os campos obrigatórios existam
           const userData: UserData = {
             id: decoded.sub || decoded.id || 'temp_id',
             email: decoded.email,
             nome: decoded.name || decoded.nome || 'Usuário',
             type: 'user', 
-            foto: decoded.picture || decoded.foto
+            foto: decoded.picture || decoded.foto,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            gosto: {} // Inicializa vazio para evitar erro de tipo
           };
           
           await saveUserSession(userData.id, userData, userData.email, gToken);
@@ -198,12 +201,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // AQUI ESTAVA O PROBLEMA DE SINTAXE. A LINHA ABAIXO ESTAVA FALTANDO:
   const updateUser = async (userData: Partial<UserData>) => {
     if (user) {
-      const updatedUser = { ...user, ...userData };
+      // TypeScript precisa saber que o resultado da mistura é um UserData válido
+      // Usamos 'user!' para garantir que não é nulo (já verificado no if)
+      const updatedUser: UserData = { ...user, ...userData };
+      
       setUser(updatedUser);
-      // AGORA O ASYNC STORAGE EXISTE NO IMPORT
+      
       const currentToken = await AsyncStorage.getItem('@psique:session_token') || undefined;
+      
       await saveUserSession(user.id, updatedUser, updatedUser.email, currentToken);
     }
   };

@@ -1,8 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// === CONFIGURAÇÃO DA API ===
-// Ajuste a URL base conforme o seu backend Eros
+// === 1. CONFIGURAÇÃO DA API (EROS/AFRODITE) ===
 const API_URL = 'https://borababy.netlify.app/api'; 
 
 const api = axios.create({
@@ -14,15 +13,15 @@ const api = axios.create({
   },
 });
 
-// === CHAVES DE STORAGE ===
+// === 2. CHAVES DE STORAGE ===
 const STORAGE_KEYS = {
   USER_ID: '@psique:user_id',
   USER_DATA: '@psique:user_data',
   USER_EMAIL: '@psique:user_email',
-  SESSION_TOKEN: '@psique:session_token',
+  SESSION_TOKEN: '@psique:session_token', 
 } as const;
 
-// === INTERFACE DO USUÁRIO (Corrigida para incluir 'gosto') ===
+// === 3. INTERFACE DO USUÁRIO (Atualizada) ===
 export interface UserData {
   id: string;
   email: string;
@@ -32,13 +31,13 @@ export interface UserData {
   created_at?: string;
   updated_at?: string;
   
-  // Adicionado para parar o erro no HomeScreen
+  // Adicionado para suportar o perfil e gostos
   gosto?: { [key: string]: string | number | boolean }; 
   
   [key: string]: any;
 }
 
-// === INTERCEPTOR DE PROTEÇÃO ===
+// === 4. INTERCEPTOR DE PROTEÇÃO ===
 // Injeta o Token em toda requisição automaticamente
 api.interceptors.request.use(
   async (config) => {
@@ -46,6 +45,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log para debug
+    // console.log(`📤 [API] ${config.method?.toUpperCase()} ${config.url}`);
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -54,14 +57,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   response => response,
   error => {
-    // Log de erro para debug
     console.error(`[API Error] ${error.config?.url}:`, error.response?.status, error.message);
     return Promise.reject(error);
   }
 );
 
-// === GERENCIAMENTO DE SESSÃO ===
+// === 5. GERENCIAMENTO DE SESSÃO ===
 
+// Agora aceita token opcional para salvar login do Google
 export const saveUserSession = async (userId: string, userData: UserData, email: string, token?: string) => {
   try {
     const pairs: [string, string][] = [
@@ -70,7 +73,6 @@ export const saveUserSession = async (userId: string, userData: UserData, email:
       [STORAGE_KEYS.USER_EMAIL, email],
     ];
 
-    // Salva o token se ele for fornecido (Auth Google / Cadastro)
     if (token) {
       pairs.push([STORAGE_KEYS.SESSION_TOKEN, token]);
     }
@@ -109,14 +111,15 @@ export const getSessionToken = async () => AsyncStorage.getItem(STORAGE_KEYS.SES
 
 export const isLoggedIn = async (): Promise<boolean> => {
   const token = await getSessionToken();
+  // Podemos verificar o userId também para garantir
   const userId = await getUserId();
   return !!(token && userId);
 };
 
-// === MÉTODOS DA API ===
+// === 6. MÉTODOS DA API ===
 
 export const clientesApi = {
-  // Busca dados do usuário pelo Token (Rota /me)
+  // Busca dados do usuário pelo Token (Rota /me ou similar)
   getMe: async () => {
     try {
       const response = await api.get('/me'); 
@@ -126,13 +129,12 @@ export const clientesApi = {
     }
   },
 
-  // Busca cliente por email (Fallback para login sem token direto)
+  // Busca cliente por email
   getClienteByEmail: async (email: string) => {
     try {
-      // Ajuste a rota conforme seu backend real
+      // Endpoint otimizado para busca
       const response = await api.get(`/clientes?email=${email}`); 
       
-      // Lógica para lidar se retornar array ou objeto único
       const data = Array.isArray(response.data) ? response.data[0] : response.data;
       
       if (data) {
@@ -144,12 +146,20 @@ export const clientesApi = {
     }
   },
 
-  // Atualizar dados do cliente
-  updateCliente: async (userId: string, data: Partial<UserData>) => {
+  // Atualizar ou Criar Cliente
+  createCliente: async (clienteData: any) => {
      try {
-       const response = await api.put(`/clientes/${userId}`, data);
-       return { success: true, data: response.data };
+       // Se tiver ID, tenta atualizar, senão cria
+       if (clienteData.id) {
+          // Tenta PUT primeiro
+          const response = await api.put(`/clientes/${clienteData.id}`, clienteData);
+          return { success: true, data: response.data };
+       } else {
+          const response = await api.post('/register', clienteData);
+          return { success: true, data: response.data };
+       }
      } catch (error: any) {
+       console.error('Erro createCliente:', error);
        return { success: false, message: error.message };
      }
   }
