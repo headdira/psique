@@ -7,23 +7,30 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
-  StyleSheet,
   Modal,
-  TextInput
+  TextInput,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
-import { Colors, Typography, Spacing, BorderRadius } from '../src/theme/index';
+import { Colors, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { clientesApi, UserData } from '../src/api/api';
 
-interface ApiResponse {
-  success: boolean;
-  data: UserData;
-  clientId: string;
-}
+// Cores locais
+const BrandColors = {
+  black: '#0E0E0E',
+  gray: '#2B2B2B',
+  offWhite: '#F5F4F2',
+  green: '#5FF0A9',
+  lilac: '#C7B5FF',
+  coral: '#FF6B6B', 
+  white: '#FFFFFF',
+  lightGray: '#E5E5E5',
+  mediumGray: '#888888' // Cor para o ícone de placeholder
+};
 
 interface ProfileData {
   created_at: string;
@@ -83,22 +90,17 @@ export default function ProfileScreen() {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      
-      if (!user?.email) {
-        Alert.alert('Erro', 'Email do usuário não encontrado');
-        return;
-      }
+      if (!user?.email) return;
 
-      // Buscar dados da API
       const response = await clientesApi.getClienteByEmail(user.email);
       
       if (response.success && response.userData) {
-        // Formatar os dados da API
         const apiData = response.userData;
         const profileData: ProfileData = {
           created_at: apiData.created_at || '',
           email: apiData.email || '',
-          foto: apiData.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
+          // Se não tiver foto, deixa undefined para ativar o ícone de fallback
+          foto: apiData.foto || undefined, 
           gosto: apiData.gosto || { comida: '', cor: '', music: '' },
           nome: apiData.nome || 'Usuário',
           type: apiData.type || 'free',
@@ -106,29 +108,27 @@ export default function ProfileScreen() {
         };
         setProfile(profileData);
         
-        // Atualizar dados de edição
         setEditData({
           nome: profileData.nome,
           gosto_comida: profileData.gosto.comida || '',
           gosto_cor: profileData.gosto.cor || '',
           gosto_music: profileData.gosto.music || '',
         });
-      } else {
-        Alert.alert('Erro', 'Não foi possível carregar os dados do perfil');
       }
-
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
-      Alert.alert('Erro', 'Falha na conexão com o servidor');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadProfile();
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/');
+    }
   };
 
   const handleLogout = () => {
@@ -139,11 +139,17 @@ export default function ProfileScreen() {
         { text: 'Cancelar', style: 'cancel' },
         { 
           text: 'Sair', 
+          style: 'destructive',
           onPress: async () => {
-            await logout();
-            router.replace('/');
+            try {
+              await logout();
+            } catch (error) {
+              console.error("Erro ao sair:", error);
+            } finally {
+              router.dismissAll();
+              router.replace('/');
+            }
           },
-          style: 'destructive'
         },
       ]
     );
@@ -164,13 +170,8 @@ export default function ProfileScreen() {
   const saveProfile = async () => {
     try {
       setLoading(true);
-      
-      if (!profile || !user?.id) {
-        Alert.alert('Erro', 'Dados do perfil não encontrados');
-        return;
-      }
+      if (!profile || !user?.id) return;
 
-      // Preparar dados para envio
       const updatedData = {
         nome: editData.nome,
         gosto: {
@@ -181,10 +182,7 @@ export default function ProfileScreen() {
         updated_at: new Date().toISOString(),
       };
 
-      // Tentar atualizar via API
       try {
-        // Como sua API não tem endpoint de update específico, vamos fazer um PUT para o endpoint geral
-        // Ou você pode precisar ajustar isso conforme sua API
         const response = await clientesApi.createCliente({
           ...updatedData,
           id: user.id,
@@ -194,33 +192,19 @@ export default function ProfileScreen() {
         });
         
         if (response.success) {
-          // Atualizar localmente
-          setProfile(prev => ({
-            ...prev!,
-            ...updatedData,
-            updated_at: updatedData.updated_at,
-          }));
-          
-          Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
+          setProfile(prev => ({ ...prev!, ...updatedData, updated_at: updatedData.updated_at }));
+          Alert.alert('Sucesso', 'Perfil atualizado!');
           setShowEditModal(false);
         } else {
-          Alert.alert('Erro', 'Não foi possível atualizar o perfil');
+          Alert.alert('Erro', 'Não foi possível atualizar');
         }
       } catch (apiError) {
-        console.error('Erro na API:', apiError);
-        // Atualizar localmente como fallback
-        setProfile(prev => ({
-          ...prev!,
-          ...updatedData,
-          updated_at: updatedData.updated_at,
-        }));
-        Alert.alert('Aviso', 'Perfil atualizado localmente (API offline)');
+        setProfile(prev => ({ ...prev!, ...updatedData, updated_at: updatedData.updated_at }));
+        Alert.alert('Aviso', 'Perfil salvo localmente');
         setShowEditModal(false);
       }
-
     } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar o perfil');
+      Alert.alert('Erro', 'Falha ao salvar');
     } finally {
       setLoading(false);
     }
@@ -229,9 +213,8 @@ export default function ProfileScreen() {
   const pickImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
       if (!permissionResult.granted) {
-        Alert.alert('Permissão necessária', 'Precisamos de acesso à sua galeria para alterar a foto.');
+        Alert.alert('Permissão necessária', 'Precisamos de acesso à galeria.');
         return;
       }
 
@@ -244,129 +227,63 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setUploadingPhoto(true);
-        
-        // Aqui você precisaria implementar o upload real para seu servidor
-        // Por enquanto, apenas atualizamos localmente
         const newPhotoUri = result.assets[0].uri;
-        
-        // Simular upload
         setTimeout(() => {
-          setProfile(prev => ({
-            ...prev!,
-            foto: newPhotoUri,
-          }));
+          setProfile(prev => ({ ...prev!, foto: newPhotoUri }));
           setUploadingPhoto(false);
-          Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
         }, 1000);
       }
     } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
-      Alert.alert('Erro', 'Não foi possível alterar a foto');
       setUploadingPhoto(false);
     }
   };
 
   const formatDate = (dateString: string) => {
-    if (!dateString) return 'Não informada';
+    if (!dateString) return ' - ';
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-    } catch (error) {
-      return dateString;
-    }
+      return new Date(dateString).toLocaleDateString('pt-BR');
+    } catch { return dateString; }
   };
 
   const renderEditModal = () => (
-    <Modal
-      visible={showEditModal}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => setShowEditModal(false)}
-    >
+    <Modal visible={showEditModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowEditModal(false)}>
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          <TouchableOpacity 
-            style={styles.modalCloseButton}
-            onPress={() => setShowEditModal(false)}
-          >
+          <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowEditModal(false)}>
             <Text style={styles.modalCloseText}>Cancelar</Text>
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Editar Perfil</Text>
-          <TouchableOpacity 
-            style={styles.modalSaveButton}
-            onPress={saveProfile}
-          >
+          <TouchableOpacity style={styles.modalSaveButton} onPress={saveProfile}>
             <Text style={styles.modalSaveText}>Salvar</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.modalContent}>
           <View style={styles.editPhotoSection}>
-            <TouchableOpacity onPress={pickImage}>
-              <Image 
-                source={{ uri: profile?.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde' }}
-                style={styles.editProfileImage}
-              />
-              <View style={styles.editPhotoOverlay}>
-                <Ionicons name="camera" size={24} color={Colors.white} />
-              </View>
+            <TouchableOpacity onPress={pickImage} style={styles.avatarEditWrapper}>
+              {profile?.foto ? (
+                <Image source={{ uri: profile.foto }} style={styles.editProfileImage} />
+              ) : (
+                <View style={[styles.editProfileImage, styles.placeholderCenter]}>
+                  <Ionicons name="person" size={50} color={BrandColors.mediumGray} />
+                </View>
+              )}
+              <View style={styles.editPhotoOverlay}><Ionicons name="camera" size={24} color={BrandColors.white} /></View>
             </TouchableOpacity>
             <Text style={styles.editPhotoText}>Alterar foto</Text>
           </View>
 
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Nome</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.nome}
-              onChangeText={(text) => setEditData({...editData, nome: text})}
-              placeholder="Seu nome"
-            />
+            <TextInput style={styles.formInput} value={editData.nome} onChangeText={(t) => setEditData({...editData, nome: t})} placeholder="Seu nome" />
           </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Comida favorita</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.gosto_comida}
-              onChangeText={(text) => setEditData({...editData, gosto_comida: text})}
-              placeholder="Ex: Pizza"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Cor favorita</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.gosto_cor}
-              onChangeText={(text) => setEditData({...editData, gosto_cor: text})}
-              placeholder="Ex: Azul"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Música favorita</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.gosto_music}
-              onChangeText={(text) => setEditData({...editData, gosto_music: text})}
-              placeholder="Ex: Eletrônica"
-            />
-          </View>
-
+          <View style={styles.formGroup}><Text style={styles.formLabel}>Comida favorita</Text><TextInput style={styles.formInput} value={editData.gosto_comida} onChangeText={(t) => setEditData({...editData, gosto_comida: t})} placeholder="Ex: Pizza" /></View>
+          <View style={styles.formGroup}><Text style={styles.formLabel}>Cor favorita</Text><TextInput style={styles.formInput} value={editData.gosto_cor} onChangeText={(t) => setEditData({...editData, gosto_cor: t})} placeholder="Ex: Azul" /></View>
+          <View style={styles.formGroup}><Text style={styles.formLabel}>Música favorita</Text><TextInput style={styles.formInput} value={editData.gosto_music} onChangeText={(t) => setEditData({...editData, gosto_music: t})} placeholder="Ex: Eletrônica" /></View>
+          
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Email</Text>
             <Text style={styles.emailText}>{profile?.email}</Text>
-            <Text style={styles.emailNote}>O email não pode ser alterado</Text>
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Tipo de conta</Text>
-            <Text style={styles.emailText}>{profile?.type === 'free' ? 'Grátis' : 'Premium'}</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -375,181 +292,103 @@ export default function ProfileScreen() {
 
   const renderGostos = () => {
     if (!profile?.gosto) return null;
-
     const { comida, cor, music } = profile.gosto;
-    
+    if (!comida && !cor && !music) return null;
+
     return (
       <View style={styles.gostosSection}>
-        <Text style={styles.sectionTitle}>Seus Gostos</Text>
+        <Text style={styles.sectionTitle}>Gostos</Text>
         <View style={styles.gostosGrid}>
-          {comida ? (
-            <View style={styles.gostoChip}>
-              <Ionicons name="restaurant" size={16} color={Colors.green} />
-              <Text style={styles.gostoChipText}>Comida: {comida}</Text>
-            </View>
-          ) : null}
-          
-          {cor ? (
-            <View style={styles.gostoChip}>
-              <Ionicons name="color-palette" size={16} color={Colors.green} />
-              <Text style={styles.gostoChipText}>Cor: {cor}</Text>
-            </View>
-          ) : null}
-          
-          {music ? (
-            <View style={styles.gostoChip}>
-              <Ionicons name="musical-notes" size={16} color={Colors.green} />
-              <Text style={styles.gostoChipText}>Música: {music}</Text>
-            </View>
-          ) : null}
+          {comida ? <View style={styles.gostoChip}><Ionicons name="restaurant" size={16} color={BrandColors.green} /><Text style={styles.gostoChipText}>{comida}</Text></View> : null}
+          {cor ? <View style={styles.gostoChip}><Ionicons name="color-palette" size={16} color={BrandColors.green} /><Text style={styles.gostoChipText}>{cor}</Text></View> : null}
+          {music ? <View style={styles.gostoChip}><Ionicons name="musical-notes" size={16} color={BrandColors.green} /><Text style={styles.gostoChipText}>{music}</Text></View> : null}
         </View>
       </View>
     );
   };
 
-  if (authLoading || isChecking) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando...</Text>
-      </View>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-      </View>
-    );
-  }
-
-  if (loading && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando perfil...</Text>
-      </View>
-    );
-  }
+  if (authLoading || isChecking) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={BrandColors.green} /></View>;
+  if (!isAuthenticated) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={BrandColors.green} /></View>;
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={24} color={Colors.black} />
+        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={28} color={BrandColors.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Perfil</Text>
-        <TouchableOpacity 
-          style={styles.editButton}
-          onPress={handleEditProfile}
-        >
-          <Ionicons name="pencil-outline" size={22} color={Colors.black} />
+        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+          <Ionicons name="pencil-outline" size={24} color={BrandColors.black} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Foto e informações básicas */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* ÁREA DA FOTO DE PERFIL */}
         <View style={styles.profileHeader}>
-          <View style={styles.profileImageContainer}>
-            <Image 
-              source={{ 
-                uri: profile?.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde' 
-              }}
-              style={styles.profileImage}
-            />
-            {uploadingPhoto && (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator size="small" color={Colors.white} />
+          <TouchableOpacity style={styles.profileImageContainer} onPress={handleEditProfile} activeOpacity={0.9}>
+            
+            {/* LÓGICA DO ÍCONE DE FALLBACK SE NÃO TIVER FOTO */}
+            {profile?.foto ? (
+              <Image 
+                source={{ uri: profile.foto }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={[styles.profileImage, styles.placeholderCenter]}>
+                <Ionicons name="person" size={60} color={BrandColors.mediumGray} />
               </View>
             )}
-          </View>
+
+            {uploadingPhoto && <View style={styles.uploadingOverlay}><ActivityIndicator color={BrandColors.white} /></View>}
+          </TouchableOpacity>
           
           <Text style={styles.profileName}>{profile?.nome || 'Usuário'}</Text>
           <Text style={styles.profileEmail}>{profile?.email}</Text>
           <View style={styles.accountTypeBadge}>
-            <Text style={styles.accountTypeText}>
-              {profile?.type === 'free' ? 'Conta Grátis' : 'Conta Premium'}
-            </Text>
+            <Text style={styles.accountTypeText}>{profile?.type === 'free' ? 'Conta Grátis' : 'Premium'}</Text>
           </View>
         </View>
 
-        {/* Gostos */}
         {renderGostos()}
 
-        {/* Informações da conta */}
         <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>Informações da Conta</Text>
-          
+          <Text style={styles.sectionTitle}>Detalhes</Text>
           <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="calendar-outline" size={20} color={Colors.gray} />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Criada em</Text>
-              <Text style={styles.infoValue}>{formatDate(profile?.created_at || '')}</Text>
-            </View>
+            <View style={styles.infoIcon}><Ionicons name="calendar-outline" size={20} color={BrandColors.gray} /></View>
+            <View style={styles.infoContent}><Text style={styles.infoLabel}>Membro desde</Text><Text style={styles.infoValue}>{formatDate(profile?.created_at || '')}</Text></View>
           </View>
-
           <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="refresh-outline" size={20} color={Colors.gray} />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Última atualização</Text>
-              <Text style={styles.infoValue}>{formatDate(profile?.updated_at || '')}</Text>
-            </View>
+            <View style={styles.infoIcon}><Ionicons name="refresh-outline" size={20} color={BrandColors.gray} /></View>
+            <View style={styles.infoContent}><Text style={styles.infoLabel}>Última atualização</Text><Text style={styles.infoValue}>{formatDate(profile?.updated_at || '')}</Text></View>
           </View>
         </View>
 
-        {/* Configurações */}
         <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>Configurações</Text>
-          
+          <Text style={styles.sectionTitle}>Opções</Text>
           <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Ionicons name="notifications-outline" size={22} color={Colors.black} />
-            </View>
+            <View style={styles.settingIcon}><Ionicons name="notifications-outline" size={22} /></View>
             <Text style={styles.settingText}>Notificações</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
+            <Ionicons name="chevron-forward" size={18} color={BrandColors.gray} />
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Ionicons name="lock-closed-outline" size={22} color={Colors.black} />
-            </View>
+            <View style={styles.settingIcon}><Ionicons name="lock-closed-outline" size={22} /></View>
             <Text style={styles.settingText}>Privacidade</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
+            <Ionicons name="chevron-forward" size={18} color={BrandColors.gray} />
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Ionicons name="help-circle-outline" size={22} color={Colors.black} />
-            </View>
+            <View style={styles.settingIcon}><Ionicons name="help-circle-outline" size={22} /></View>
             <Text style={styles.settingText}>Ajuda & Suporte</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
+            <Ionicons name="chevron-forward" size={18} color={BrandColors.gray} />
           </TouchableOpacity>
         </View>
 
-        {/* Botão de logout */}
-        <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Ionicons name="log-out-outline" size={20} />
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={BrandColors.coral} />
           <Text style={styles.logoutText}>Sair da conta</Text>
         </TouchableOpacity>
 
         <View style={styles.footer}>
-          <Text style={styles.versionText}>Versão 2.0.0</Text>
-          <Text style={styles.footerText}>Psique App © 2026</Text>
+          <Text style={styles.versionText}>v2.0.2</Text>
         </View>
       </ScrollView>
 
@@ -561,51 +400,57 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.offWhite,
+    backgroundColor: BrandColors.offWhite,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.offWhite,
+    backgroundColor: BrandColors.offWhite,
   },
   loadingText: {
     marginTop: Spacing.md,
     fontSize: 16,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
+    borderBottomColor: BrandColors.lightGray,
+    backgroundColor: BrandColors.offWhite,
+    zIndex: 10,
   },
   backButton: {
-    padding: Spacing.xs,
+    padding: Spacing.sm,
+    marginLeft: -Spacing.sm,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
+    color: BrandColors.black,
+    fontFamily: 'Montserrat-Bold',
   },
   editButton: {
-    padding: Spacing.xs,
+    padding: Spacing.sm,
+    marginRight: -Spacing.sm,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
   },
-
-  // Content
   content: {
     flex: 1,
   },
-
-  // Profile Header
   profileHeader: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,
@@ -620,12 +465,17 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 3,
-    borderColor: Colors.white,
+    borderColor: BrandColors.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+    backgroundColor: BrandColors.lightGray, // Garante que o círculo exista mesmo sem foto
+  },
+  placeholderCenter: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -641,14 +491,14 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 28,
     fontWeight: '700',
-    color: Colors.black,
+    color: BrandColors.black,
     fontFamily: 'Montserrat-Bold',
     marginBottom: Spacing.xs,
     textAlign: 'center',
   },
   profileEmail: {
     fontSize: 16,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
     marginBottom: Spacing.md,
   },
@@ -657,15 +507,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderWidth: 1,
-    borderColor: Colors.green,
+    borderColor: BrandColors.green,
+    borderRadius: BorderRadius.sm,
   },
   accountTypeText: {
     fontSize: 14,
-    color: Colors.green,
+    color: BrandColors.green,
     fontFamily: 'Inter-Medium',
   },
-
-  // Gostos
   gostosSection: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -673,8 +522,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
+    color: BrandColors.black,
+    fontFamily: 'Montserrat-Bold',
     marginBottom: Spacing.md,
   },
   gostosGrid: {
@@ -683,22 +532,20 @@ const styles = StyleSheet.create({
   gostoChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: BrandColors.white,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.lightGray,
+    borderColor: BrandColors.lightGray,
     gap: Spacing.sm,
   },
   gostoChipText: {
     fontSize: 16,
-    color: Colors.black,
+    color: BrandColors.black,
     fontFamily: 'Inter-Medium',
     flex: 1,
   },
-
-  // Informações
   infoSection: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -706,12 +553,12 @@ const styles = StyleSheet.create({
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: BrandColors.white,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.lightGray,
+    borderColor: BrandColors.lightGray,
     marginBottom: Spacing.sm,
   },
   infoIcon: {
@@ -724,17 +571,15 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 13,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 15,
-    color: Colors.black,
+    color: BrandColors.black,
     fontFamily: 'Inter-Medium',
   },
-
-  // Settings
   settingsSection: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
@@ -742,12 +587,12 @@ const styles = StyleSheet.create({
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: BrandColors.white,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.lightGray,
+    borderColor: BrandColors.lightGray,
     marginBottom: Spacing.sm,
   },
   settingIcon: {
@@ -758,29 +603,27 @@ const styles = StyleSheet.create({
   settingText: {
     flex: 1,
     fontSize: 16,
-    color: Colors.black,
+    color: BrandColors.black,
     fontFamily: 'Inter-Medium',
   },
-
-  // Logout Button
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: BrandColors.white,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
+    borderColor: BrandColors.coral,
     gap: Spacing.sm,
   },
   logoutText: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
+    color: BrandColors.coral,
   },
-
-  // Footer
   footer: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,
@@ -788,20 +631,18 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 13,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
     marginBottom: Spacing.xs,
   },
   footerText: {
     fontSize: 13,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
   },
-
-  // Edit Modal
   modalContainer: {
     flex: 1,
-    backgroundColor: Colors.offWhite,
+    backgroundColor: BrandColors.offWhite,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -810,28 +651,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
+    borderBottomColor: BrandColors.lightGray,
   },
   modalCloseButton: {
     padding: Spacing.xs,
   },
   modalCloseText: {
     fontSize: 16,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
+    color: BrandColors.black,
+    fontFamily: 'Montserrat-Bold',
   },
   modalSaveButton: {
     padding: Spacing.xs,
   },
   modalSaveText: {
     fontSize: 16,
-    color: Colors.green,
+    color: BrandColors.green,
     fontFamily: 'Inter-SemiBold',
   },
   modalContent: {
@@ -839,8 +680,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
   },
-
-  // Edit Form
   editPhotoSection: {
     alignItems: 'center',
     marginBottom: Spacing.xl,
@@ -850,6 +689,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     marginBottom: Spacing.sm,
+    backgroundColor: BrandColors.lightGray,
   },
   editPhotoOverlay: {
     position: 'absolute',
@@ -864,8 +704,12 @@ const styles = StyleSheet.create({
   },
   editPhotoText: {
     fontSize: 14,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
+  },
+  avatarEditWrapper: {
+    position: 'relative',
+    alignItems: 'center',
   },
   formGroup: {
     marginBottom: Spacing.lg,
@@ -873,30 +717,30 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.black,
+    color: BrandColors.black,
     fontFamily: 'Inter-SemiBold',
     marginBottom: Spacing.xs,
   },
   formInput: {
-    backgroundColor: Colors.white,
+    backgroundColor: BrandColors.white,
     borderWidth: 1,
-    borderColor: Colors.lightGray,
+    borderColor: BrandColors.lightGray,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     fontSize: 16,
-    color: Colors.black,
+    color: BrandColors.black,
     fontFamily: 'Inter-Regular',
   },
   emailText: {
     fontSize: 16,
-    color: Colors.black,
+    color: BrandColors.black,
     fontFamily: 'Inter-Regular',
     marginBottom: Spacing.xs,
   },
   emailNote: {
     fontSize: 13,
-    color: Colors.gray,
+    color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
   },
 });

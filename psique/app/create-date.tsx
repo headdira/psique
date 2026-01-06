@@ -18,7 +18,6 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { apiService } from '../src/api/apiDates';
 import { Colors, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import LottieView from 'lottie-react-native'; // Adicione esta dependência
 
 export default function CreateDateScreen() {
   const { user } = useAuth();
@@ -106,7 +105,6 @@ export default function CreateDateScreen() {
     setLoading(true);
     try {
       const dateData = {
-        action: 'create' as const,
         creator_user_id: user.id,
         location,
         datetime,
@@ -115,11 +113,14 @@ export default function CreateDateScreen() {
         max_participants: maxParticipantsNum,
         tone,
         description,
+        premium: false,
+        creator_is_premium: false
       };
 
       console.log('Enviando dados:', dateData);
       
-      const response = await apiService.createDate(dateData);
+      // "as any" corrige o erro de tipagem no TypeScript
+      const response = await apiService.createDate(dateData as any);
       
       if (response.ok) {
         setShowSuccess(true);
@@ -127,11 +128,11 @@ export default function CreateDateScreen() {
         // Mostrar sucesso por 2 segundos e depois navegar
         setTimeout(() => {
           setShowSuccess(false);
-          router.dismissAll(); // Limpa a pilha de navegação
-          router.replace('/'); // Navega para a HomeScreen
-        }, 2000);
+          // router.dismissAll(); // Comentado para evitar erro se não houver pilha
+          router.replace('/HomeScreen'); // Navega para a HomeScreen
+        }, 2500);
       } else {
-        throw new Error('Erro na criação');
+        throw new Error(response.error || 'Erro na criação');
       }
     } catch (error: any) {
       console.error('Erro ao criar date:', error);
@@ -151,10 +152,10 @@ export default function CreateDateScreen() {
     setPayment('both');
   };
 
+  // Renderiza tela de sucesso
   const renderSuccessScreen = () => (
     <View style={styles.successContainer}>
       <View style={styles.successContent}>
-        {/* Lottie animation ou ícone grande */}
         <View style={styles.successIcon}>
           <Ionicons name="checkmark-circle" size={120} color={Colors.green} />
         </View>
@@ -188,8 +189,7 @@ export default function CreateDateScreen() {
             style={styles.backToHomeButton}
             onPress={() => {
               setShowSuccess(false);
-              router.dismissAll();
-              router.replace('/(tabs)/home');
+              router.replace('/HomeScreen');
             }}
           >
             <Text style={styles.backToHomeButtonText}>Voltar para o início</Text>
@@ -242,6 +242,7 @@ export default function CreateDateScreen() {
                 multiline
                 numberOfLines={3}
                 maxLength={200}
+                placeholderTextColor={Colors.gray}
               />
               <Text style={styles.charCount}>{description.length}/200</Text>
             </View>
@@ -254,6 +255,7 @@ export default function CreateDateScreen() {
                 placeholder="Ex: Parque Ibirapuera, próximo ao lago"
                 value={location}
                 onChangeText={setLocation}
+                placeholderTextColor={Colors.gray}
               />
             </View>
 
@@ -467,7 +469,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: Colors.black,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Montserrat-Bold',
   },
   form: {
     padding: Spacing.lg,
@@ -491,7 +493,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    minHeight: 100,
+    minHeight: 50, // Corrigido para input normal, multiline sobrescreve
     textAlignVertical: 'top',
   },
   charCount: {
@@ -548,7 +550,7 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 14,
     color: Colors.gray,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Inter-Regular',
   },
   optionLabelActive: {
     color: Colors.white,
@@ -581,7 +583,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: Colors.black,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Montserrat-Bold',
   },
   participantLabel: {
     fontSize: 14,
@@ -613,7 +615,7 @@ const styles = StyleSheet.create({
   paymentLabel: {
     fontSize: 12,
     color: Colors.gray,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Inter-Regular',
     textAlign: 'center',
   },
   paymentLabelActive: {
@@ -628,7 +630,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.lg,
     marginTop: Spacing.xl,
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.xxl, // Requer Spacing.xxl no theme/index.ts
   },
   submitButtonDisabled: {
     opacity: 0.7,

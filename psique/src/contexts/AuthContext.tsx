@@ -14,6 +14,7 @@ import {
   UserData
 } from '../api/api';
 
+// Garante que o navegador feche corretamente após o retorno
 WebBrowser.maybeCompleteAuthSession();
 
 export interface AuthContextData {
@@ -33,6 +34,7 @@ export interface AuthContextData {
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
+// Função auxiliar para decodificar JWT (Token do Google)
 const decodeJwt = (token: string) => {
   try {
     const base64Url = token.split('.')[1];
@@ -46,6 +48,7 @@ const decodeJwt = (token: string) => {
   }
 };
 
+// Polyfill para 'atob' caso não exista no ambiente nativo
 if (!global.atob) {
   global.atob = (input: string) => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
@@ -70,16 +73,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Manipula o retorno do Navegador (Deep Link)
   const handleBrowserReturn = async (result: WebBrowser.WebBrowserAuthSessionResult) => {
     if (result.type === 'success' && result.url) {
+      // Extrai os parâmetros da URL de retorno
       const { queryParams } = Linking.parse(result.url);
       
       const gToken = queryParams?.['g_token'];
+      
+      // Caso 1: Login com Google bem-sucedido (Token presente)
       if (typeof gToken === 'string') {
         const decoded = decodeJwt(gToken);
         
         if (decoded && decoded.email) {
-          // Cria o objeto garantindo que todos os campos obrigatórios existam
           const userData: UserData = {
             id: decoded.sub || decoded.id || 'temp_id',
             email: decoded.email,
@@ -88,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             foto: decoded.picture || decoded.foto,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            gosto: {} // Inicializa vazio para evitar erro de tipo
+            gosto: {} 
           };
           
           await saveUserSession(userData.id, userData, userData.email, gToken);
@@ -98,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
+      // Caso 2: Login via email/senha bem-sucedido
       if (queryParams?.['login'] === 'success') {
          return { success: true, message: 'Sucesso! Agora faça login.' };
       }
@@ -108,8 +115,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithGoogle = async () => {
     try {
       setLoading(true);
+      
+      // === CORREÇÃO CRUCIAL ===
+      // Cria a URL de retorno dinâmica (ex: exp://192.168.x.x:8081 no Expo Go)
       const redirectUri = Linking.createURL('/'); 
-      const authUrl = 'https://borababy.netlify.app/?mode=google'; 
+      
+      // Anexa o redirect_uri na URL do site de login
+      // O site BoraBaby DEVE ler esse parâmetro e usá-lo para redirecionar de volta
+      const authUrl = `https://borababy.netlify.app/?mode=google&redirect_uri=${encodeURIComponent(redirectUri)}`; 
+      
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
       return await handleBrowserReturn(result);
     } catch (error: any) {
@@ -122,8 +136,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async () => {
     try {
       setLoading(true);
+      // === CORREÇÃO CRUCIAL (MESMA LÓGICA) ===
       const redirectUri = Linking.createURL('/'); 
-      const authUrl = 'https://borababy.netlify.app/?mode=signup'; 
+      const authUrl = `https://borababy.netlify.app/?mode=signup&redirect_uri=${encodeURIComponent(redirectUri)}`; 
+      
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
       return await handleBrowserReturn(result);
     } catch (error: any) {
@@ -201,11 +217,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // AQUI ESTAVA O PROBLEMA DE SINTAXE. A LINHA ABAIXO ESTAVA FALTANDO:
   const updateUser = async (userData: Partial<UserData>) => {
     if (user) {
-      // TypeScript precisa saber que o resultado da mistura é um UserData válido
-      // Usamos 'user!' para garantir que não é nulo (já verificado no if)
       const updatedUser: UserData = { ...user, ...userData };
       
       setUser(updatedUser);
