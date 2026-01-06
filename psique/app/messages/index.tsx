@@ -12,12 +12,10 @@ import {
 import { router, useFocusEffect } from 'expo-router'; 
 import { Ionicons } from '@expo/vector-icons';
 
-// === CORREÇÃO DOS CAMINHOS (Baseado no seu print) ===
-// Sai de 'messages', sai de 'app', entra em 'src'
+// === CAMINHOS CORRIGIDOS (Baseado no seu print) ===
 import { useAuth } from '../../src/contexts/AuthContext'; 
 import { chatApi, ChatPreview } from '../../src/api/apiChat';
 import { Colors } from '../../src/theme'; 
-// OBS: Se 'Colors' não exportar nada, remova e use cores hexadecimais direto (#000)
 
 export default function MessagesListScreen() {
   const { user } = useAuth();
@@ -25,7 +23,7 @@ export default function MessagesListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Função que busca os dados na API
+  // Função que busca as conversas na API
   const loadChats = async () => {
     if (!user?.id) return;
     
@@ -34,8 +32,6 @@ export default function MessagesListScreen() {
       
       if (result.success && result.data) {
         setChats(result.data);
-      } else {
-        console.log("Nenhum chat encontrado.");
       }
     } catch (error) {
       console.error('Erro ao carregar chats:', error);
@@ -45,7 +41,7 @@ export default function MessagesListScreen() {
     }
   };
 
-  // useFocusEffect: Recarrega a lista SEMPRE que você entra na tela (clica no ícone)
+  // Recarrega a lista SEMPRE que você entra na tela (clica no ícone do chat)
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
@@ -62,14 +58,14 @@ export default function MessagesListScreen() {
     <TouchableOpacity 
       style={styles.chatItem} 
       onPress={() => {
-        // Navega para a conversa individual
+        // Navega para a conversa individual, passando ID e Nome
         router.push({
           pathname: `/messages/${item.id}`,
           params: { name: item.user_name }
         });
       }}
     >
-      {/* Foto do usuário ou Placeholder Cinza se não tiver */}
+      {/* Foto do usuário ou Ícone Padrão */}
       {item.user_photo ? (
         <Image source={{ uri: item.user_photo }} style={styles.avatar} />
       ) : (
@@ -87,12 +83,13 @@ export default function MessagesListScreen() {
             {item.last_message_time ? new Date(item.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
           </Text>
         </View>
+        
         <Text style={styles.lastMsg} numberOfLines={1}>
-          {item.last_message || 'Toque para conversar'}
+          {item.last_message || 'Toque para iniciar a conversa'}
         </Text>
       </View>
       
-      {/* Bolinha de mensagens não lidas */}
+      {/* Bolinha de não lidas (se tiver) */}
       {item.unread_count && item.unread_count > 0 ? (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{item.unread_count}</Text>
@@ -127,7 +124,9 @@ export default function MessagesListScreen() {
             <View style={styles.emptyState}>
               <Ionicons name="chatbubbles-outline" size={64} color="#CCC" />
               <Text style={styles.emptyText}>Nenhuma conversa ainda</Text>
-              <Text style={styles.emptySubText}>Aceite um rolê para começar a conversar!</Text>
+              <Text style={styles.emptySubText}>
+                As conversas aparecerão aqui quando você der match em um rolê.
+              </Text>
             </View>
           }
         />

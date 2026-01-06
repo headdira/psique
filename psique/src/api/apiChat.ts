@@ -1,3 +1,5 @@
+import { UserData } from './api';
+
 // URL da API
 const API_BASE_URL = 'https://afrodite-v1.netlify.app/api'; 
 
@@ -11,7 +13,7 @@ export interface ChatPreview {
   other_user_id: string;
 }
 
-// === CORREÇÃO 1: Adicionado 'export' aqui para o import funcionar ===
+// Interface da Mensagem (com export para usar no outro arquivo)
 export interface Message {
   id: string;
   sender_id: string;
@@ -21,24 +23,28 @@ export interface Message {
 }
 
 export const chatApi = {
+  // 1. Busca todas as conversas do usuário para a lista
   getConversations: async (userId: string) => {
     try {
+      console.log('Buscando conversas para o ID:', userId);
       const response = await fetch(`${API_BASE_URL}/chats?user_id=${userId}`);
       const data = await response.json();
+      
+      console.log('Conversas encontradas:', data.length);
       return { success: response.ok, data: Array.isArray(data) ? data : [] };
     } catch (error: any) {
+      console.error('Erro getConversations:', error);
       return { success: false, error: error.message };
     }
   },
 
-  // === CORREÇÃO 2: Adicionado 'myUserId' nos parâmetros ===
+  // 2. Busca mensagens de um chat específico
   getMessages: async (chatId: string, myUserId: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`);
       const data = await response.json();
       
       if (Array.isArray(data)) {
-        // Agora podemos usar 'myUserId' para calcular o 'is_mine'
         const formatted = data.map((msg: any) => ({
           ...msg,
           is_mine: msg.sender_id === myUserId,
@@ -52,6 +58,7 @@ export const chatApi = {
     }
   },
 
+  // 3. Envia mensagem
   sendMessage: async (chatId: string, senderId: string, content: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
