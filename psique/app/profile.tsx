@@ -17,7 +17,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
-import { clientesApi, UserData } from '../src/api/api';
+import { clientesApi } from '../src/api/api';
 
 // Cores locais
 const BrandColors = {
@@ -29,13 +29,13 @@ const BrandColors = {
   coral: '#FF6B6B', 
   white: '#FFFFFF',
   lightGray: '#E5E5E5',
-  mediumGray: '#888888' // Cor para o ícone de placeholder
+  mediumGray: '#999999'
 };
 
 interface ProfileData {
   created_at: string;
   email: string;
-  foto?: string;
+  foto?: string | null;
   gosto: {
     comida: string;
     cor: string;
@@ -96,11 +96,15 @@ export default function ProfileScreen() {
       
       if (response.success && response.userData) {
         const apiData = response.userData;
+        
+        // CORREÇÃO: Se não tiver foto, define explicitamente como NULL
+        // Isso ativa o ícone de fallback
+        const userPhoto = (apiData.foto && apiData.foto.length > 5) ? apiData.foto : null;
+
         const profileData: ProfileData = {
           created_at: apiData.created_at || '',
           email: apiData.email || '',
-          // Se não tiver foto, deixa undefined para ativar o ícone de fallback
-          foto: apiData.foto || undefined, 
+          foto: userPhoto,
           gosto: apiData.gosto || { comida: '', cor: '', music: '' },
           nome: apiData.nome || 'Usuário',
           type: apiData.type || 'free',
@@ -189,6 +193,7 @@ export default function ProfileScreen() {
           email: profile.email,
           type: profile.type,
           created_at: profile.created_at,
+          foto: profile.foto // Mantém a foto atual
         });
         
         if (response.success) {
@@ -228,6 +233,8 @@ export default function ProfileScreen() {
       if (!result.canceled && result.assets[0]) {
         setUploadingPhoto(true);
         const newPhotoUri = result.assets[0].uri;
+        
+        // Simulação de upload
         setTimeout(() => {
           setProfile(prev => ({ ...prev!, foto: newPhotoUri }));
           setUploadingPhoto(false);
@@ -260,7 +267,9 @@ export default function ProfileScreen() {
 
         <ScrollView style={styles.modalContent}>
           <View style={styles.editPhotoSection}>
-            <TouchableOpacity onPress={pickImage} style={styles.avatarEditWrapper}>
+            <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper}>
+              
+              {/* LÓGICA DE FOTO NO MODAL */}
               {profile?.foto ? (
                 <Image source={{ uri: profile.foto }} style={styles.editProfileImage} />
               ) : (
@@ -268,7 +277,10 @@ export default function ProfileScreen() {
                   <Ionicons name="person" size={50} color={BrandColors.mediumGray} />
                 </View>
               )}
-              <View style={styles.editPhotoOverlay}><Ionicons name="camera" size={24} color={BrandColors.white} /></View>
+              
+              <View style={styles.editPhotoOverlay}>
+                <Ionicons name="camera" size={24} color={BrandColors.white} />
+              </View>
             </TouchableOpacity>
             <Text style={styles.editPhotoText}>Alterar foto</Text>
           </View>
@@ -280,7 +292,6 @@ export default function ProfileScreen() {
           <View style={styles.formGroup}><Text style={styles.formLabel}>Comida favorita</Text><TextInput style={styles.formInput} value={editData.gosto_comida} onChangeText={(t) => setEditData({...editData, gosto_comida: t})} placeholder="Ex: Pizza" /></View>
           <View style={styles.formGroup}><Text style={styles.formLabel}>Cor favorita</Text><TextInput style={styles.formInput} value={editData.gosto_cor} onChangeText={(t) => setEditData({...editData, gosto_cor: t})} placeholder="Ex: Azul" /></View>
           <View style={styles.formGroup}><Text style={styles.formLabel}>Música favorita</Text><TextInput style={styles.formInput} value={editData.gosto_music} onChangeText={(t) => setEditData({...editData, gosto_music: t})} placeholder="Ex: Eletrônica" /></View>
-          
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Email</Text>
             <Text style={styles.emailText}>{profile?.email}</Text>
@@ -323,16 +334,12 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* ÁREA DA FOTO DE PERFIL */}
         <View style={styles.profileHeader}>
           <TouchableOpacity style={styles.profileImageContainer} onPress={handleEditProfile} activeOpacity={0.9}>
             
-            {/* LÓGICA DO ÍCONE DE FALLBACK SE NÃO TIVER FOTO */}
+            {/* LÓGICA DE FOTO PRINCIPAL: SE TIVER FOTO, MOSTRA IMAGEM. SE NÃO, MOSTRA ÍCONE */}
             {profile?.foto ? (
-              <Image 
-                source={{ uri: profile.foto }}
-                style={styles.profileImage}
-              />
+              <Image source={{ uri: profile.foto }} style={styles.profileImage} />
             ) : (
               <View style={[styles.profileImage, styles.placeholderCenter]}>
                 <Ionicons name="person" size={60} color={BrandColors.mediumGray} />
@@ -341,7 +348,6 @@ export default function ProfileScreen() {
 
             {uploadingPhoto && <View style={styles.uploadingOverlay}><ActivityIndicator color={BrandColors.white} /></View>}
           </TouchableOpacity>
-          
           <Text style={styles.profileName}>{profile?.nome || 'Usuário'}</Text>
           <Text style={styles.profileEmail}>{profile?.email}</Text>
           <View style={styles.accountTypeBadge}>
@@ -388,7 +394,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <View style={styles.footer}>
-          <Text style={styles.versionText}>v2.0.2</Text>
+          <Text style={styles.versionText}>v2.0.3</Text>
         </View>
       </ScrollView>
 
@@ -471,7 +477,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
-    backgroundColor: BrandColors.lightGray, // Garante que o círculo exista mesmo sem foto
+    backgroundColor: BrandColors.lightGray,
   },
   placeholderCenter: {
     justifyContent: 'center',
@@ -691,6 +697,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     backgroundColor: BrandColors.lightGray,
   },
+  avatarWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+  },
   editPhotoOverlay: {
     position: 'absolute',
     top: 0,
@@ -706,10 +716,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
-  },
-  avatarEditWrapper: {
-    position: 'relative',
-    alignItems: 'center',
   },
   formGroup: {
     marginBottom: Spacing.lg,

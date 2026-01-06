@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -6,14 +6,18 @@ import {
   TouchableOpacity, 
   Image, 
   ActivityIndicator, 
-  RefreshControl 
+  RefreshControl,
+  StyleSheet
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router'; 
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../src/contexts/AuthContext';
+
+// === CORREÇÃO DOS CAMINHOS (Baseado no seu print) ===
+// Sai de 'messages', sai de 'app', entra em 'src'
+import { useAuth } from '../../src/contexts/AuthContext'; 
 import { chatApi, ChatPreview } from '../../src/api/apiChat';
-import { styles } from './index.styles';
-import { Colors } from '../../src/theme';
+import { Colors } from '../../src/theme'; 
+// OBS: Se 'Colors' não exportar nada, remova e use cores hexadecimais direto (#000)
 
 export default function MessagesListScreen() {
   const { user } = useAuth();
@@ -21,29 +25,33 @@ export default function MessagesListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Carrega as conversas
-  const loadChats = useCallback(async () => {
+  // Função que busca os dados na API
+  const loadChats = async () => {
     if (!user?.id) return;
     
-    // Se não estiver dando refresh, mostra loading full screen
-    if (!refreshing) setLoading(true);
-
     try {
       const result = await chatApi.getConversations(user.id);
+      
       if (result.success && result.data) {
         setChats(result.data);
+      } else {
+        console.log("Nenhum chat encontrado.");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao carregar chats:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user, refreshing]);
+  };
 
-  useEffect(() => {
-    loadChats();
-  }, [user]); // Carrega ao montar e quando tiver user
+  // useFocusEffect: Recarrega a lista SEMPRE que você entra na tela (clica no ícone)
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      loadChats();
+    }, [user?.id])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -53,23 +61,38 @@ export default function MessagesListScreen() {
   const renderItem = ({ item }: { item: ChatPreview }) => (
     <TouchableOpacity 
       style={styles.chatItem} 
-      onPress={() => router.push(`/messages/${item.id}?name=${item.user_name}`)}
+      onPress={() => {
+        // Navega para a conversa individual
+        router.push({
+          pathname: `/messages/${item.id}`,
+          params: { name: item.user_name }
+        });
+      }}
     >
-      <Image 
-        source={{ uri: item.user_photo || 'https://via.placeholder.com/150' }} 
-        style={styles.avatar} 
-      />
+      {/* Foto do usuário ou Placeholder Cinza se não tiver */}
+      {item.user_photo ? (
+        <Image source={{ uri: item.user_photo }} style={styles.avatar} />
+      ) : (
+        <View style={[styles.avatar, styles.placeholderCenter]}>
+          <Ionicons name="person" size={24} color="#888" />
+        </View>
+      )}
+
       <View style={styles.chatInfo}>
-        <View style={styles.row}>
-          <Text style={styles.name} numberOfLines={1}>{item.user_name || 'Usuário'}</Text>
-          <Text style={styles.time}>{item.last_message_time || ''}</Text>
+        <View style={styles.topRow}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {item.user_name || 'Usuário Desconhecido'}
+          </Text>
+          <Text style={styles.time}>
+            {item.last_message_time ? new Date(item.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+          </Text>
         </View>
         <Text style={styles.lastMsg} numberOfLines={1}>
-          {item.last_message || 'Toque para iniciar a conversa'}
+          {item.last_message || 'Toque para conversar'}
         </Text>
       </View>
       
-      {/* Badge de não lidas (Opcional) */}
+      {/* Bolinha de mensagens não lidas */}
       {item.unread_count && item.unread_count > 0 ? (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{item.unread_count}</Text>
@@ -80,16 +103,17 @@ export default function MessagesListScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Personalizado */}
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={Colors.black} />
+          <Ionicons name="arrow-back" size={24} color="#0E0E0E" />
         </TouchableOpacity>
-        <Text style={styles.title}>Mensagens</Text>
+        <Text style={styles.headerTitle}>Conversas</Text>
       </View>
 
+      {/* Lista */}
       {loading && !refreshing ? (
-        <ActivityIndicator size="large" color={Colors.green} style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color="#5FF0A9" style={{ marginTop: 20 }} />
       ) : (
         <FlatList
           data={chats}
@@ -97,13 +121,13 @@ export default function MessagesListScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.green]} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5FF0A9" />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="chatbubbles-outline" size={64} color={Colors.gray} />
-              <Text style={styles.emptyText}>Nenhuma conversa</Text>
-              <Text style={styles.emptySub}>Seus matches e rolês aceitos aparecerão aqui.</Text>
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubbles-outline" size={64} color="#CCC" />
+              <Text style={styles.emptyText}>Nenhuma conversa ainda</Text>
+              <Text style={styles.emptySubText}>Aceite um rolê para começar a conversar!</Text>
             </View>
           }
         />
@@ -111,3 +135,109 @@ export default function MessagesListScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F4F2',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0E0E0E',
+  },
+  listContent: {
+    padding: 16,
+  },
+  chatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#E5E5E5',
+    marginRight: 12,
+  },
+  placeholderCenter: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chatInfo: {
+    flex: 1,
+  },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0E0E0E',
+    maxWidth: '70%',
+  },
+  time: {
+    fontSize: 12,
+    color: '#888888',
+  },
+  lastMsg: {
+    fontSize: 14,
+    color: '#666666',
+  },
+  badge: {
+    backgroundColor: '#5FF0A9',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  emptyState: {
+    alignItems: 'center',
+    marginTop: 100,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0E0E0E',
+  },
+  emptySubText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#888888',
+    textAlign: 'center',
+  }
+});

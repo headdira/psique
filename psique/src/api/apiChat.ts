@@ -1,69 +1,72 @@
-import { apiService } from './apiDates'; // Reutilizando sua configuração base
-
-export interface Message {
-  id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-  is_mine?: boolean; // Vamos calcular isso no frontend
-}
+// URL da API
+const API_BASE_URL = 'https://afrodite-v1.netlify.app/api'; 
 
 export interface ChatPreview {
-  id: string; // ID da conversa ou do usuário alvo
+  id: string;
   user_name: string;
   user_photo?: string;
   last_message?: string;
   last_message_time?: string;
   unread_count?: number;
+  other_user_id: string;
+}
+
+// === CORREÇÃO 1: Adicionado 'export' aqui para o import funcionar ===
+export interface Message {
+  id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  is_mine: boolean;
 }
 
 export const chatApi = {
-  // 1. Listar todas as conversas
   getConversations: async (userId: string) => {
-    // Endpoint sugerido: GET /chats?user_id=...
-    const result = await apiService.makeRequest(`/chats?user_id=${userId}`, 'GET');
-    
-    if (result.ok && result.data) {
-      return { success: true, data: result.data };
+    try {
+      const response = await fetch(`${API_BASE_URL}/chats?user_id=${userId}`);
+      const data = await response.json();
+      return { success: response.ok, data: Array.isArray(data) ? data : [] };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-    return { success: false, data: [] };
   },
 
-  // 2. Pegar mensagens de uma conversa específica
-  getMessages: async (chatId: string, currentUserId: string) => {
-    // Endpoint sugerido: GET /chats/:chatId/messages
-    const result = await apiService.makeRequest(`/chats/${chatId}/messages`, 'GET');
-    
-    if (result.ok && result.data) {
-      // Processa para marcar quais são minhas
-      const messages = Array.isArray(result.data) ? result.data : [];
-      const formatted = messages.map((msg: any) => ({
-        ...msg,
-        is_mine: msg.sender_id === currentUserId
-      }));
-      return { success: true, data: formatted };
+  // === CORREÇÃO 2: Adicionado 'myUserId' nos parâmetros ===
+  getMessages: async (chatId: string, myUserId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`);
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        // Agora podemos usar 'myUserId' para calcular o 'is_mine'
+        const formatted = data.map((msg: any) => ({
+          ...msg,
+          is_mine: msg.sender_id === myUserId,
+          created_at: msg.timestamp || msg.created_at
+        }));
+        return { success: true, data: formatted };
+      }
+      return { success: false, data: [] };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-    return { success: false, data: [] };
   },
 
-  // 3. Enviar mensagem
   sendMessage: async (chatId: string, senderId: string, content: string) => {
-    const payload = {
-      sender_id: senderId,
-      content: content,
-      timestamp: new Date().toISOString()
-    };
-
-    const result = await apiService.makeRequest(`/chats/${chatId}/messages`, 'POST', payload);
-    return { success: result.ok, data: result.data };
-  },
-
-  // 4. Criar ou Obter ID de conversa com um usuário
-  startChat: async (myUserId: string, targetUserId: string) => {
-    const payload = {
-      participants: [myUserId, targetUserId]
-    };
-    const result = await apiService.makeRequest('/chats', 'POST', payload);
-    return { success: result.ok, chatId: result.data?.id };
+    try {
+      const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender_id: senderId,
+          content: content,
+          timestamp: new Date().toISOString()
+        })
+      });
+      const data = await response.json();
+      return { success: response.ok, data };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   }
 };
