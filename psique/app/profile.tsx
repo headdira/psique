@@ -9,7 +9,8 @@ import {
   Alert,
   StyleSheet,
   Modal,
-  TextInput
+  TextInput,
+  FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,15 +18,11 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
-import { clientesApi, UserData } from '../src/api/api';
-
-interface ApiResponse {
-  success: boolean;
-  data: UserData;
-  clientId: string;
-}
+import * as FileSystem from 'expo-file-system';
+import { clientesApi, UserData, FeedPost, ClienteUpdateData } from '../src/api/api';
 
 interface ProfileData {
+  id: string;
   created_at: string;
   email: string;
   foto?: string;
@@ -46,6 +43,9 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showFeedModal, setShowFeedModal] = useState(false);
+  const [newPostText, setNewPostText] = useState('');
+  const [newPostType, setNewPostType] = useState<'photo' | 'interest' | 'activity'>('interest');
   const [editData, setEditData] = useState({
     nome: '',
     gosto_comida: '',
@@ -53,7 +53,11 @@ export default function ProfileScreen() {
     gosto_music: '',
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [feedPosts, setFeedPosts] = useState<FeedPost[]>([]);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [loadingFeed, setLoadingFeed] = useState(false);
 
+  // Removida a verificação duplicada de autenticação
   useEffect(() => {
     const verifyAuth = async () => {
       try {
@@ -77,6 +81,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (isAuthenticated && !isChecking) {
       loadProfile();
+      loadUserFeed();
     }
   }, [isAuthenticated, isChecking]);
 
@@ -89,13 +94,12 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Buscar dados da API
       const response = await clientesApi.getClienteByEmail(user.email);
       
       if (response.success && response.userData) {
-        // Formatar os dados da API
         const apiData = response.userData;
         const profileData: ProfileData = {
+          id: response.userId,
           created_at: apiData.created_at || '',
           email: apiData.email || '',
           foto: apiData.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
@@ -106,7 +110,6 @@ export default function ProfileScreen() {
         };
         setProfile(profileData);
         
-        // Atualizar dados de edição
         setEditData({
           nome: profileData.nome,
           gosto_comida: profileData.gosto.comida || '',
@@ -126,103 +129,20 @@ export default function ProfileScreen() {
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadProfile();
-  };
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Sair',
-      'Tem certeza que deseja sair?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Sair', 
-          onPress: async () => {
-            await logout();
-            router.replace('/');
-          },
-          style: 'destructive'
-        },
-      ]
-    );
-  };
-
-  const handleEditProfile = () => {
-    if (profile) {
-      setEditData({
-        nome: profile.nome,
-        gosto_comida: profile.gosto.comida || '',
-        gosto_cor: profile.gosto.cor || '',
-        gosto_music: profile.gosto.music || '',
-      });
-      setShowEditModal(true);
-    }
-  };
-
-  const saveProfile = async () => {
+  const loadUserFeed = async () => {
+    if (!profile?.id) return;
+    
     try {
-      setLoading(true);
+      setLoadingFeed(true);
+      const response = await clientesApi.getFeedPosts(profile.id);
       
-      if (!profile || !user?.id) {
-        Alert.alert('Erro', 'Dados do perfil não encontrados');
-        return;
+      if (response.success && response.posts) {
+        setFeedPosts(response.posts);
       }
-
-      // Preparar dados para envio
-      const updatedData = {
-        nome: editData.nome,
-        gosto: {
-          comida: editData.gosto_comida,
-          cor: editData.gosto_cor,
-          music: editData.gosto_music,
-        },
-        updated_at: new Date().toISOString(),
-      };
-
-      // Tentar atualizar via API
-      try {
-        // Como sua API não tem endpoint de update específico, vamos fazer um PUT para o endpoint geral
-        // Ou você pode precisar ajustar isso conforme sua API
-        const response = await clientesApi.createCliente({
-          ...updatedData,
-          id: user.id,
-          email: profile.email,
-          type: profile.type,
-          created_at: profile.created_at,
-        });
-        
-        if (response.success) {
-          // Atualizar localmente
-          setProfile(prev => ({
-            ...prev!,
-            ...updatedData,
-            updated_at: updatedData.updated_at,
-          }));
-          
-          Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
-          setShowEditModal(false);
-        } else {
-          Alert.alert('Erro', 'Não foi possível atualizar o perfil');
-        }
-      } catch (apiError) {
-        console.error('Erro na API:', apiError);
-        // Atualizar localmente como fallback
-        setProfile(prev => ({
-          ...prev!,
-          ...updatedData,
-          updated_at: updatedData.updated_at,
-        }));
-        Alert.alert('Aviso', 'Perfil atualizado localmente (API offline)');
-        setShowEditModal(false);
-      }
-
     } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar o perfil');
+      console.error('Erro ao carregar feed:', error);
     } finally {
-      setLoading(false);
+      setLoadingFeed(false);
     }
   };
 
@@ -242,27 +162,161 @@ export default function ProfileScreen() {
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets[0] && profile?.id) {
         setUploadingPhoto(true);
+        const imageUri = result.assets[0].uri;
         
-        // Aqui você precisaria implementar o upload real para seu servidor
-        // Por enquanto, apenas atualizamos localmente
-        const newPhotoUri = result.assets[0].uri;
-        
-        // Simular upload
-        setTimeout(() => {
-          setProfile(prev => ({
-            ...prev!,
-            foto: newPhotoUri,
-          }));
+        try {
+          // Upload para a API
+          const response = await clientesApi.uploadFoto(profile.id, imageUri);
+          
+          if (response.success) {
+            // Atualizar perfil localmente
+            setProfile(prev => ({
+              ...prev!,
+              foto: imageUri,
+              updated_at: new Date().toISOString(),
+            }));
+            
+            Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+          } else {
+            Alert.alert('Erro', 'Não foi possível atualizar a foto');
+          }
+        } catch (error) {
+          console.error('Erro no upload:', error);
+          Alert.alert('Erro', 'Falha ao enviar foto para o servidor');
+        } finally {
           setUploadingPhoto(false);
-          Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
-        }, 1000);
+        }
       }
     } catch (error) {
       console.error('Erro ao selecionar imagem:', error);
       Alert.alert('Erro', 'Não foi possível alterar a foto');
       setUploadingPhoto(false);
+    }
+  };
+
+  const pickImageForPost = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permissão necessária', 'Precisamos de acesso à sua galeria.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        aspect: [4, 3],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar imagem:', error);
+      Alert.alert('Erro', 'Não foi possível selecionar a imagem');
+    }
+  };
+
+  const createPost = async () => {
+    if (!profile?.id || (!newPostText && !selectedImage)) {
+      Alert.alert('Atenção', 'Adicione um texto ou imagem para criar um post');
+      return;
+    }
+
+    try {
+      setLoadingFeed(true);
+      
+      const postData = {
+        userId: profile.id,
+        text: newPostText,
+        type: newPostType,
+        image: selectedImage || undefined,
+      };
+
+      const response = await clientesApi.createFeedPost(postData);
+      
+      if (response.success) {
+        // Adicionar o novo post à lista
+        const newPost: FeedPost = {
+          id: response.postId,
+          userId: profile.id,
+          text: newPostText,
+          type: newPostType,
+          image: selectedImage || undefined,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          likes: [],
+        };
+        
+        setFeedPosts(prev => [newPost, ...prev]);
+        setNewPostText('');
+        setSelectedImage(null);
+        setShowFeedModal(false);
+        Alert.alert('Sucesso', 'Post criado com sucesso!');
+      } else {
+        Alert.alert('Erro', 'Não foi possível criar o post');
+      }
+    } catch (error) {
+      console.error('Erro ao criar post:', error);
+      Alert.alert('Erro', 'Falha ao criar post');
+    } finally {
+      setLoadingFeed(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    try {
+      setLoading(true);
+      
+      if (!profile || !user?.id) {
+        Alert.alert('Erro', 'Dados do perfil não encontrados');
+        return;
+      }
+
+      const updatedData: ClienteUpdateData = {
+        id: profile.id,
+        email: profile.email,
+        nome: editData.nome,
+        foto: profile.foto,
+        type: profile.type,
+        gosto: {
+          comida: editData.gosto_comida,
+          cor: editData.gosto_cor,
+          music: editData.gosto_music,
+        },
+        created_at: profile.created_at,
+        updated_at: new Date().toISOString(),
+      };
+
+      const response = await clientesApi.updateCliente(updatedData);
+      
+      if (response.success) {
+        setProfile(prev => ({
+          ...prev!,
+          nome: editData.nome,
+          gosto: {
+            comida: editData.gosto_comida,
+            cor: editData.gosto_cor,
+            music: editData.gosto_music,
+          },
+          updated_at: updatedData.updated_at,
+        }));
+        
+        Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
+        setShowEditModal(false);
+      } else {
+        Alert.alert('Erro', 'Não foi possível atualizar o perfil');
+      }
+
+    } catch (error) {
+      console.error('Erro ao salvar perfil:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar o perfil');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -280,132 +334,158 @@ export default function ProfileScreen() {
     }
   };
 
-  const renderEditModal = () => (
+  const renderFeedModal = () => (
     <Modal
-      visible={showEditModal}
+      visible={showFeedModal}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={() => setShowEditModal(false)}
+      onRequestClose={() => setShowFeedModal(false)}
     >
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity 
             style={styles.modalCloseButton}
-            onPress={() => setShowEditModal(false)}
+            onPress={() => setShowFeedModal(false)}
           >
             <Text style={styles.modalCloseText}>Cancelar</Text>
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>Editar Perfil</Text>
+          <Text style={styles.modalTitle}>Novo Post</Text>
           <TouchableOpacity 
             style={styles.modalSaveButton}
-            onPress={saveProfile}
+            onPress={createPost}
+            disabled={loadingFeed}
           >
-            <Text style={styles.modalSaveText}>Salvar</Text>
+            {loadingFeed ? (
+              <ActivityIndicator size="small" color={Colors.green} />
+            ) : (
+              <Text style={styles.modalSaveText}>Publicar</Text>
+            )}
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.modalContent}>
-          <View style={styles.editPhotoSection}>
-            <TouchableOpacity onPress={pickImage}>
-              <Image 
-                source={{ uri: profile?.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde' }}
-                style={styles.editProfileImage}
+          <View style={styles.postTypeSelector}>
+            <TouchableOpacity 
+              style={[styles.postTypeButton, newPostType === 'interest' && styles.postTypeButtonActive]}
+              onPress={() => setNewPostType('interest')}
+            >
+              <Ionicons 
+                name="heart-outline" 
+                size={20} 
+                color={newPostType === 'interest' ? Colors.white : Colors.gray} 
               />
-              <View style={styles.editPhotoOverlay}>
-                <Ionicons name="camera" size={24} color={Colors.white} />
-              </View>
+              <Text style={[
+                styles.postTypeText,
+                newPostType === 'interest' && styles.postTypeTextActive
+              ]}>Interesse</Text>
             </TouchableOpacity>
-            <Text style={styles.editPhotoText}>Alterar foto</Text>
+            
+            <TouchableOpacity 
+              style={[styles.postTypeButton, newPostType === 'photo' && styles.postTypeButtonActive]}
+              onPress={() => setNewPostType('photo')}
+            >
+              <Ionicons 
+                name="camera-outline" 
+                size={20} 
+                color={newPostType === 'photo' ? Colors.white : Colors.gray} 
+              />
+              <Text style={[
+                styles.postTypeText,
+                newPostType === 'photo' && styles.postTypeTextActive
+              ]}>Foto</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.postTypeButton, newPostType === 'activity' && styles.postTypeButtonActive]}
+              onPress={() => setNewPostType('activity')}
+            >
+              <Ionicons 
+                name="bicycle-outline" 
+                size={20} 
+                color={newPostType === 'activity' ? Colors.white : Colors.gray} 
+              />
+              <Text style={[
+                styles.postTypeText,
+                newPostType === 'activity' && styles.postTypeTextActive
+              ]}>Atividade</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Nome</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.nome}
-              onChangeText={(text) => setEditData({...editData, nome: text})}
-              placeholder="Seu nome"
-            />
-          </View>
+          {selectedImage && (
+            <View style={styles.selectedImageContainer}>
+              <Image 
+                source={{ uri: selectedImage }}
+                style={styles.selectedImage}
+              />
+              <TouchableOpacity 
+                style={styles.removeImageButton}
+                onPress={() => setSelectedImage(null)}
+              >
+                <Ionicons name="close-circle" size={24} color={Colors.red} />
+              </TouchableOpacity>
+            </View>
+          )}
 
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Comida favorita</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.gosto_comida}
-              onChangeText={(text) => setEditData({...editData, gosto_comida: text})}
-              placeholder="Ex: Pizza"
-            />
-          </View>
+          <TextInput
+            style={styles.postInput}
+            placeholder="O que você está pensando ou fazendo?"
+            placeholderTextColor={Colors.gray}
+            value={newPostText}
+            onChangeText={setNewPostText}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
 
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Cor favorita</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.gosto_cor}
-              onChangeText={(text) => setEditData({...editData, gosto_cor: text})}
-              placeholder="Ex: Azul"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Música favorita</Text>
-            <TextInput
-              style={styles.formInput}
-              value={editData.gosto_music}
-              onChangeText={(text) => setEditData({...editData, gosto_music: text})}
-              placeholder="Ex: Eletrônica"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Email</Text>
-            <Text style={styles.emailText}>{profile?.email}</Text>
-            <Text style={styles.emailNote}>O email não pode ser alterado</Text>
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Tipo de conta</Text>
-            <Text style={styles.emailText}>{profile?.type === 'free' ? 'Grátis' : 'Premium'}</Text>
+          <View style={styles.postActions}>
+            <TouchableOpacity 
+              style={styles.postActionButton}
+              onPress={pickImageForPost}
+            >
+              <Ionicons name="image-outline" size={22} color={Colors.green} />
+              <Text style={styles.postActionText}>Foto</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
     </Modal>
   );
 
-  const renderGostos = () => {
-    if (!profile?.gosto) return null;
-
-    const { comida, cor, music } = profile.gosto;
-    
-    return (
-      <View style={styles.gostosSection}>
-        <Text style={styles.sectionTitle}>Seus Gostos</Text>
-        <View style={styles.gostosGrid}>
-          {comida ? (
-            <View style={styles.gostoChip}>
-              <Ionicons name="restaurant" size={16} color={Colors.green} />
-              <Text style={styles.gostoChipText}>Comida: {comida}</Text>
-            </View>
-          ) : null}
-          
-          {cor ? (
-            <View style={styles.gostoChip}>
-              <Ionicons name="color-palette" size={16} color={Colors.green} />
-              <Text style={styles.gostoChipText}>Cor: {cor}</Text>
-            </View>
-          ) : null}
-          
-          {music ? (
-            <View style={styles.gostoChip}>
-              <Ionicons name="musical-notes" size={16} color={Colors.green} />
-              <Text style={styles.gostoChipText}>Música: {music}</Text>
-            </View>
-          ) : null}
+  const renderFeedItem = ({ item }: { item: FeedPost }) => (
+    <View style={styles.feedItem}>
+      <View style={styles.feedItemHeader}>
+        <View style={styles.feedItemUser}>
+          <Image 
+            source={{ uri: profile?.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde' }}
+            style={styles.feedUserImage}
+          />
+          <View>
+            <Text style={styles.feedUserName}>{profile?.nome || 'Usuário'}</Text>
+            <Text style={styles.feedItemDate}>
+              {formatDate(item.created_at)} • {item.type === 'photo' ? '📸 Foto' : item.type === 'activity' ? '🏃 Atividade' : '❤️ Interesse'}
+            </Text>
+          </View>
         </View>
       </View>
-    );
-  };
+      
+      {item.image && (
+        <Image 
+          source={{ uri: item.image }}
+          style={styles.feedImage}
+          resizeMode="cover"
+        />
+      )}
+      
+      <Text style={styles.feedText}>{item.text}</Text>
+      
+      <View style={styles.feedItemFooter}>
+        <TouchableOpacity style={styles.likeButton}>
+          <Ionicons name="heart-outline" size={18} color={Colors.gray} />
+          <Text style={styles.likeCount}>{item.likes?.length || 0}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   if (authLoading || isChecking) {
     return (
@@ -424,26 +504,12 @@ export default function ProfileScreen() {
     );
   }
 
-  if (loading && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando perfil...</Text>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header simplificado - removido botão de voltar */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={24} color={Colors.black} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Perfil</Text>
+        <View style={styles.headerLeft} />
+        <Text style={styles.headerTitle}>Meu Perfil</Text>
         <TouchableOpacity 
           style={styles.editButton}
           onPress={handleEditProfile}
@@ -455,105 +521,100 @@ export default function ProfileScreen() {
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.green]}
+            tintColor={Colors.green}
+          />
+        }
       >
-        {/* Foto e informações básicas */}
+        {/* Informações básicas */}
         <View style={styles.profileHeader}>
-          <View style={styles.profileImageContainer}>
-            <Image 
-              source={{ 
-                uri: profile?.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde' 
-              }}
-              style={styles.profileImage}
-            />
-            {uploadingPhoto && (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator size="small" color={Colors.white} />
+          <TouchableOpacity onPress={pickImage} disabled={uploadingPhoto}>
+            <View style={styles.profileImageContainer}>
+              <Image 
+                source={{ 
+                  uri: profile?.foto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde' 
+                }}
+                style={styles.profileImage}
+              />
+              {uploadingPhoto && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={Colors.white} />
+                </View>
+              )}
+              <View style={styles.changePhotoBadge}>
+                <Ionicons name="camera" size={14} color={Colors.white} />
               </View>
-            )}
-          </View>
+            </View>
+          </TouchableOpacity>
           
           <Text style={styles.profileName}>{profile?.nome || 'Usuário'}</Text>
           <Text style={styles.profileEmail}>{profile?.email}</Text>
-          <View style={styles.accountTypeBadge}>
-            <Text style={styles.accountTypeText}>
-              {profile?.type === 'free' ? 'Conta Grátis' : 'Conta Premium'}
+          
+          <TouchableOpacity 
+            style={styles.addToFeedButton}
+            onPress={() => setShowFeedModal(true)}
+          >
+            <Ionicons name="add" size={20} color={Colors.white} />
+            <Text style={styles.addToFeedText}>Adicionar ao Feed</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Feed do usuário */}
+        {feedPosts.length > 0 ? (
+          <View style={styles.feedSection}>
+            <Text style={styles.sectionTitle}>Meu Feed</Text>
+            <FlatList
+              data={feedPosts}
+              renderItem={renderFeedItem}
+              keyExtractor={item => item.id}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyFeed}>
+                  <Ionicons name="newspaper-outline" size={48} color={Colors.lightGray} />
+                  <Text style={styles.emptyFeedText}>Nenhum post ainda</Text>
+                  <Text style={styles.emptyFeedSubtext}>Compartilhe suas experiências!</Text>
+                </View>
+              }
+            />
+          </View>
+        ) : (
+          <View style={styles.emptyFeedContainer}>
+            <Ionicons name="newspaper-outline" size={64} color={Colors.lightGray} />
+            <Text style={styles.emptyFeedTitle}>Seu feed está vazio</Text>
+            <Text style={styles.emptyFeedDescription}>
+              Compartilhe fotos, interesses e atividades com seus amigos
             </Text>
+            <TouchableOpacity 
+              style={styles.emptyFeedButton}
+              onPress={() => setShowFeedModal(true)}
+            >
+              <Ionicons name="add" size={20} color={Colors.white} />
+              <Text style={styles.emptyFeedButtonText}>Criar primeiro post</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Gostos */}
-        {renderGostos()}
-
-        {/* Informações da conta */}
-        <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>Informações da Conta</Text>
-          
-          <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="calendar-outline" size={20} color={Colors.gray} />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Criada em</Text>
-              <Text style={styles.infoValue}>{formatDate(profile?.created_at || '')}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="refresh-outline" size={20} color={Colors.gray} />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Última atualização</Text>
-              <Text style={styles.infoValue}>{formatDate(profile?.updated_at || '')}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Configurações */}
-        <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>Configurações</Text>
-          
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Ionicons name="notifications-outline" size={22} color={Colors.black} />
-            </View>
-            <Text style={styles.settingText}>Notificações</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Ionicons name="lock-closed-outline" size={22} color={Colors.black} />
-            </View>
-            <Text style={styles.settingText}>Privacidade</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Ionicons name="help-circle-outline" size={22} color={Colors.black} />
-            </View>
-            <Text style={styles.settingText}>Ajuda & Suporte</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Botão de logout */}
         <TouchableOpacity 
           style={styles.logoutButton}
           onPress={handleLogout}
         >
-          <Ionicons name="log-out-outline" size={20} />
-          <Text style={styles.logoutText}>Sair da conta</Text>
+          <Ionicons name="log-out-outline" size={20} color={Colors.red} />
+          <Text style={[styles.logoutText, { color: Colors.red }]}>Sair da conta</Text>
         </TouchableOpacity>
 
         <View style={styles.footer}>
           <Text style={styles.versionText}>Versão 2.0.0</Text>
-          <Text style={styles.footerText}>Psique App © 2026</Text>
+          <Text style={styles.footerText}>Psique App © 2024</Text>
         </View>
       </ScrollView>
 
-      {renderEditModal()}
+      {renderFeedModal()}
     </SafeAreaView>
   );
 }
@@ -573,7 +634,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     fontSize: 16,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
   },
 
   // Header
@@ -587,22 +647,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.lightGray,
   },
-  backButton: {
-    padding: Spacing.xs,
+  headerLeft: {
+    width: 40, // Para centralizar o título
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.black,
-    fontFamily: 'Inter-Bold',
   },
   editButton: {
     padding: Spacing.xs,
-  },
-
-  // Content
-  content: {
-    flex: 1,
   },
 
   // Profile Header
@@ -621,11 +675,19 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     borderWidth: 3,
     borderColor: Colors.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  },
+  changePhotoBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.green,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.white,
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -642,163 +704,130 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: Colors.black,
-    fontFamily: 'Montserrat-Bold',
     marginBottom: Spacing.xs,
     textAlign: 'center',
   },
   profileEmail: {
     fontSize: 16,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  accountTypeBadge: {
-    backgroundColor: 'rgba(95, 240, 169, 0.1)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.green,
+  addToFeedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.green,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
   },
-  accountTypeText: {
+  addToFeedText: {
+    color: Colors.white,
+    fontWeight: '600',
     fontSize: 14,
-    color: Colors.green,
-    fontFamily: 'Inter-Medium',
   },
 
-  // Gostos
-  gostosSection: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.black,
-    fontFamily: 'Inter-Bold',
-    marginBottom: Spacing.md,
-  },
-  gostosGrid: {
-    gap: Spacing.sm,
-  },
-  gostoChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    gap: Spacing.sm,
-  },
-  gostoChipText: {
-    fontSize: 16,
-    color: Colors.black,
-    fontFamily: 'Inter-Medium',
-    flex: 1,
-  },
-
-  // Informações
-  infoSection: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    marginBottom: Spacing.sm,
-  },
-  infoIcon: {
-    marginRight: Spacing.md,
-    width: 30,
-    alignItems: 'center',
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 15,
-    color: Colors.black,
-    fontFamily: 'Inter-Medium',
-  },
-
-  // Settings
-  settingsSection: {
+  // Feed Section
+  feedSection: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
   },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    marginBottom: Spacing.sm,
-  },
-  settingIcon: {
-    marginRight: Spacing.md,
-    width: 30,
-    alignItems: 'center',
-  },
-  settingText: {
-    flex: 1,
-    fontSize: 16,
-    color: Colors.black,
-    fontFamily: 'Inter-Medium',
-  },
-
-  // Logout Button
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    gap: Spacing.sm,
-  },
-  logoutText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-  },
-
-  // Footer
-  footer: {
+  emptyFeedContainer: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,
     paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
-  versionText: {
-    fontSize: 13,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
+  emptyFeedTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.black,
+    marginTop: Spacing.md,
     marginBottom: Spacing.xs,
   },
-  footerText: {
-    fontSize: 13,
+  emptyFeedDescription: {
+    fontSize: 14,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    lineHeight: 20,
+  },
+  emptyFeedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.green,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  emptyFeedButtonText: {
+    color: Colors.white,
+    fontWeight: '600',
+    fontSize: 15,
   },
 
-  // Edit Modal
+  // Feed Item
+  feedItem: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+  },
+  feedItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.md,
+  },
+  feedItemUser: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  feedUserImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  feedUserName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.black,
+  },
+  feedItemDate: {
+    fontSize: 12,
+    color: Colors.gray,
+    marginTop: 2,
+  },
+  feedImage: {
+    width: '100%',
+    height: 200,
+  },
+  feedText: {
+    fontSize: 15,
+    color: Colors.black,
+    lineHeight: 22,
+    padding: Spacing.md,
+    paddingTop: Spacing.sm,
+  },
+  feedItemFooter: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+  likeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  likeCount: {
+    fontSize: 14,
+    color: Colors.gray,
+  },
+
+  // Modal
   modalContainer: {
     flex: 1,
     backgroundColor: Colors.offWhite,
@@ -818,85 +847,134 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontSize: 16,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.black,
-    fontFamily: 'Inter-Bold',
   },
   modalSaveButton: {
     padding: Spacing.xs,
+    minWidth: 60,
+    alignItems: 'center',
   },
   modalSaveText: {
     fontSize: 16,
     color: Colors.green,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
   },
+
+  // Post Modal
   modalContent: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
   },
-
-  // Edit Form
-  editPhotoSection: {
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  editProfileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: Spacing.sm,
-  },
-  editPhotoOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  editPhotoText: {
-    fontSize: 14,
-    color: Colors.gray,
-    fontFamily: 'Inter-Regular',
-  },
-  formGroup: {
+  postTypeSelector: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: Spacing.xs,
+  postTypeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    backgroundColor: Colors.white,
   },
-  formInput: {
+  postTypeButtonActive: {
+    backgroundColor: Colors.green,
+    borderColor: Colors.green,
+  },
+  postTypeText: {
+    fontSize: 14,
+    color: Colors.gray,
+    fontWeight: '500',
+  },
+  postTypeTextActive: {
+    color: Colors.white,
+  },
+  selectedImageContainer: {
+    position: 'relative',
+    marginBottom: Spacing.lg,
+  },
+  selectedImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: BorderRadius.md,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: Spacing.xs,
+    right: Spacing.xs,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+  },
+  postInput: {
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.lightGray,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     fontSize: 16,
     color: Colors.black,
-    fontFamily: 'Inter-Regular',
+    minHeight: 120,
+    marginBottom: Spacing.lg,
   },
-  emailText: {
+  postActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  postActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    padding: Spacing.sm,
+  },
+  postActionText: {
+    fontSize: 14,
+    color: Colors.green,
+    fontWeight: '500',
+  },
+
+  // Logout Button
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    gap: Spacing.sm,
+  },
+  logoutText: {
     fontSize: 16,
-    color: Colors.black,
-    fontFamily: 'Inter-Regular',
-    marginBottom: Spacing.xs,
+    fontWeight: '600',
   },
-  emailNote: {
+
+  // Footer
+  footer: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+  },
+  versionText: {
     fontSize: 13,
     color: Colors.gray,
-    fontFamily: 'Inter-Regular',
+    marginBottom: Spacing.xs,
+  },
+  footerText: {
+    fontSize: 13,
+    color: Colors.gray,
   },
 });

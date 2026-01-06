@@ -122,7 +122,7 @@ const DateCard = ({ date, onPress }: any) => {
             <Text style={s.locationText}>{date?.city || 'Local'}</Text>
           </View>
           
-          <Text style={s.cardTitle}>{date?.title || 'Rolê sem nome'}</Text>
+          <Text style={s.cardTitle}>{date?.title || 'date sem nome'}</Text>
           <Text style={s.cardDescription} numberOfLines={2}>
             {date?.description || 'Vibe real, conexão de verdade.'}
           </Text>
@@ -308,7 +308,7 @@ const DateDetailsModal = ({
       });
       
       if (response.ok) {
-        Alert.alert('✅ Feito!', 'Rolê atualizado!');
+        Alert.alert('✅ Feito!', 'date atualizado!');
         setIsEditing(false);
         loadDates();
       } else {
@@ -354,7 +354,7 @@ const DateDetailsModal = ({
     
     Alert.alert(
       'Cancelar inscrição',
-      'Certeza que quer pular desse rolê?',
+      'Certeza que quer pular desse date?',
       [
         { text: 'Fica', style: 'cancel' },
         {
@@ -467,7 +467,7 @@ const DateDetailsModal = ({
       style={[s.editForm, { opacity: fadeAnim }]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={s.sectionTitle}>Editar rolê</Text>
+      <Text style={s.sectionTitle}>Editar date</Text>
       
       <View style={s.formGroup}>
         <Text style={s.label}>Descrição</Text>
@@ -475,7 +475,7 @@ const DateDetailsModal = ({
           style={s.input}
           value={editData.description}
           onChangeText={(text) => setEditData({...editData, description: text})}
-          placeholder="Qual a vibe do rolê?"
+          placeholder="Qual a vibe do date?"
           multiline
           numberOfLines={3}
           placeholderTextColor={BrandColors.gray}
@@ -518,7 +518,7 @@ const DateDetailsModal = ({
       </View>
       
       <View style={s.formGroup}>
-        <Text style={s.label}>Tipo de rolê</Text>
+        <Text style={s.label}>Tipo de date</Text>
         <View style={s.optionsRow}>
           {['praia', 'bar', 'parque', 'cafe', 'show', 'cinema', 'restaurante', 'outro'].map((type) => (
             <TouchableOpacity
@@ -627,7 +627,7 @@ const DateDetailsModal = ({
         </View>
       </View>
       
-      <Text style={s.detailTitle}>{date?.title || 'Rolê sem nome'}</Text>
+      <Text style={s.detailTitle}>{date?.title || 'date sem nome'}</Text>
       <Text style={s.detailDescription}>{date?.description || 'Vibe real, conexão de verdade.'}</Text>
       
       <View style={s.infoSection}>
@@ -704,7 +704,7 @@ const DateDetailsModal = ({
               <View style={s.statusContent}>
                 <Text style={s.statusTitleAccepted}>🎉 Aceito!</Text>
                 <Text style={s.statusMessage}>
-                  Sua vibe foi aprovada! Você tá confirmado nesse rolê.
+                  Sua vibe foi aprovada! Você tá confirmado nesse date.
                   O organizador pode entrar em contato com detalhes.
                 </Text>
                 <TouchableOpacity 
@@ -741,7 +741,7 @@ const DateDetailsModal = ({
                 <Text style={s.statusTitleRejected}>❌ Recusado</Text>
                 <Text style={s.statusMessage}>
                   Não rolou dessa vez. Sem stress! 
-                  Tem outros rolês legais pra curtir.
+                  Tem outros dates legais pra curtir.
                 </Text>
               </View>
             </View>
@@ -763,7 +763,7 @@ const DateDetailsModal = ({
               
               <TextInput
                 style={s.messageInput}
-                placeholder="Fala pro organizador porque você quer entrar nesse rolê..."
+                placeholder="Fala pro organizador porque você quer entrar nesse date..."
                 value={message}
                 onChangeText={setMessage}
                 multiline
@@ -807,7 +807,7 @@ const DateDetailsModal = ({
             <Ionicons name="arrow-back" size={24} color={BrandColors.black} />
           </TouchableOpacity>
           <Text style={s.modalTitle}>
-            {isEditing ? 'Editar rolê' : 'Detalhes'}
+            {isEditing ? 'Editar date' : 'Detalhes'}
           </Text>
           
           {userStatus?.user_status === 'creator' && !isEditing && (
@@ -921,7 +921,7 @@ export default function HomeScreen() {
             
             return {
               id: apiDate.id || `temp-${index}`,
-              title: apiDate.description?.split('.')[0]?.substring(0, 30) || apiDate.type || 'Rolê sem nome',
+              title: apiDate.description?.split('.')[0]?.substring(0, 30) || apiDate.type || 'date sem nome',
               description: apiDate.description || '',
               image: getImageForType(apiDate.type),
               type: apiDate.type,
@@ -1024,7 +1024,7 @@ export default function HomeScreen() {
     return (
       <View style={s.loadingScreen}>
         <ActivityIndicator size="large" color={BrandColors.green} />
-        <Text style={s.loadingText}>Carregando rolês...</Text>
+        <Text style={s.loadingText}>Carregando dates...</Text>
       </View>
     );
   }
@@ -1179,7 +1179,7 @@ export default function HomeScreen() {
       >
         <View style={s.greeting}>
           <Text style={s.greetingText}>Oi, {user?.nome?.split(' ')[0] || 'amigo'} 👋</Text>
-          <Text style={s.greetingSub}>Rolês com vibe real</Text>
+          <Text style={s.greetingSub}>dates com vibe real</Text>
         </View>
         
         <View style={s.quickActions}>
@@ -1206,7 +1206,7 @@ export default function HomeScreen() {
         <View style={s.datesSection}>
           <View style={s.sectionHeader}>
             <Text style={s.sectionTitle}>
-              {activeTab === 'all' && 'Rolês próximos'}
+              {activeTab === 'all' && 'dates próximos'}
               {activeTab === 'submitted' && 'Submetidos'}
               {activeTab === 'accepted' && 'Confirmados'}
             </Text>
@@ -1238,20 +1238,20 @@ export default function HomeScreen() {
               />
               <Text style={s.emptyTitle}>
                 {activeTab === 'submitted' ? 'Nenhum submit ainda' :
-                 activeTab === 'accepted' ? 'Nenhum rolê aceito' :
-                 'Sem rolês por aqui'}
+                 activeTab === 'accepted' ? 'Nenhum date aceito' :
+                 'Sem dates por aqui'}
               </Text>
               <Text style={s.emptyText}>
-                {activeTab === 'submitted' ? 'Encontre um rolê legal e manda ver!' :
-                 activeTab === 'accepted' ? 'Suba em mais rolês e aguarde as confirmações' :
-                 'Cria o primeiro rolê na sua área!'}
+                {activeTab === 'submitted' ? 'Encontre um date legal e manda ver!' :
+                 activeTab === 'accepted' ? 'Suba em mais dates e aguarde as confirmações' :
+                 'Cria o primeiro date na sua área!'}
               </Text>
               {activeTab === 'all' && (
                 <TouchableOpacity 
                   style={s.createButton}
                   onPress={() => router.push('/create-date')}
                 >
-                  <Text style={s.createButtonText}>Criar meu rolê</Text>
+                  <Text style={s.createButtonText}>Criar meu date</Text>
                 </TouchableOpacity>
               )}
             </Animated.View>

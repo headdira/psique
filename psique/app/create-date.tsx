@@ -18,7 +18,6 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { apiService } from '../src/api/apiDates';
 import { Colors, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import LottieView from 'lottie-react-native'; // Adicione esta dependência
 
 export default function CreateDateScreen() {
   const { user } = useAuth();
@@ -27,7 +26,8 @@ export default function CreateDateScreen() {
   
   // Form state
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
+  const [city, setCity] = useState('');
+  const [specificLocation, setSpecificLocation] = useState('');
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -36,6 +36,13 @@ export default function CreateDateScreen() {
   const [tone, setTone] = useState('friendship');
   const [maxParticipants, setMaxParticipants] = useState('2');
   const [payment, setPayment] = useState<'host_pays' | 'each_pays' | 'both'>('both');
+
+  // Cidades comuns para sugestões (pode ser expandida)
+  const citySuggestions = [
+    'São Paulo', 'Rio de Janeiro', 'Belo Horizonte', 'Brasília', 'Curitiba',
+    'Porto Alegre', 'Salvador', 'Fortaleza', 'Recife', 'Florianópolis',
+    'Campinas', 'Santos', 'Niterói', 'João Pessoa', 'Maceió'
+  ];
 
   const typeOptions = [
     { id: 'parque', label: 'Parque', emoji: '🌳' },
@@ -86,11 +93,11 @@ export default function CreateDateScreen() {
 
   const handleSubmit = async () => {
     if (!user?.id) {
-      Alert.alert('Erro', 'Você precisa estar logado para criar um rolê');
+      Alert.alert('Erro', 'Você precisa estar logado para criar um date');
       return;
     }
 
-    if (!description.trim() || !location.trim()) {
+    if (!description.trim() || !city.trim() || !specificLocation.trim()) {
       Alert.alert('Atenção', 'Preencha todos os campos obrigatórios');
       return;
     }
@@ -102,6 +109,9 @@ export default function CreateDateScreen() {
       Alert.alert('Atenção', 'Número de participantes deve ser entre 2 e 50');
       return;
     }
+
+    // Combinar cidade e local específico para o campo location
+    const location = `${city}, ${specificLocation}`;
 
     setLoading(true);
     try {
@@ -127,22 +137,23 @@ export default function CreateDateScreen() {
         // Mostrar sucesso por 2 segundos e depois navegar
         setTimeout(() => {
           setShowSuccess(false);
-          router.dismissAll(); // Limpa a pilha de navegação
-          router.replace('/'); // Navega para a HomeScreen
+          router.dismissAll();
+          router.replace('/');
         }, 2000);
       } else {
         throw new Error('Erro na criação');
       }
     } catch (error: any) {
       console.error('Erro ao criar date:', error);
-      Alert.alert('Erro', error.message || 'Não foi possível criar o rolê');
+      Alert.alert('Erro', error.message || 'Não foi possível criar o date');
       setLoading(false);
     }
   };
 
   const resetForm = () => {
     setDescription('');
-    setLocation('');
+    setCity('');
+    setSpecificLocation('');
     setDate(new Date());
     setTime(new Date());
     setType('parque');
@@ -154,15 +165,14 @@ export default function CreateDateScreen() {
   const renderSuccessScreen = () => (
     <View style={styles.successContainer}>
       <View style={styles.successContent}>
-        {/* Lottie animation ou ícone grande */}
         <View style={styles.successIcon}>
           <Ionicons name="checkmark-circle" size={120} color={Colors.green} />
         </View>
         
-        <Text style={styles.successTitle}>🎉 Rolê criado com sucesso!</Text>
+        <Text style={styles.successTitle}>🎉 date criado com sucesso!</Text>
         
         <Text style={styles.successMessage}>
-          Seu rolê já está disponível para outras pessoas encontrarem. 
+          Seu date já está disponível para outras pessoas encontrarem. 
           Em breve você receberá notificações de interessados!
         </Text>
 
@@ -202,7 +212,7 @@ export default function CreateDateScreen() {
               resetForm();
             }}
           >
-            <Text style={styles.createAnotherButtonText}>Criar outro rolê</Text>
+            <Text style={styles.createAnotherButtonText}>Criar outro date</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -225,7 +235,7 @@ export default function CreateDateScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color={Colors.black} />
             </TouchableOpacity>
-            <Text style={styles.title}>Criar novo rolê</Text>
+            <Text style={styles.title}>Criar novo date</Text>
             <View style={{ width: 24 }} />
           </View>
 
@@ -246,15 +256,50 @@ export default function CreateDateScreen() {
               <Text style={styles.charCount}>{description.length}/200</Text>
             </View>
 
-            {/* Localização */}
+            {/* Cidade */}
             <View style={styles.field}>
-              <Text style={styles.label}>Onde? *</Text>
+              <Text style={styles.label}>Cidade *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ex: Parque Ibirapuera, próximo ao lago"
-                value={location}
-                onChangeText={setLocation}
+                placeholder="Ex: São Paulo"
+                value={city}
+                onChangeText={setCity}
               />
+              
+              {/* Sugestões de cidades */}
+              {city.trim().length === 0 && (
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.suggestionsContainer}
+                  contentContainerStyle={styles.suggestionsContent}
+                >
+                  {citySuggestions.map((suggestion, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.suggestionChip}
+                      onPress={() => setCity(suggestion)}
+                    >
+                      <Ionicons name="location" size={14} color={Colors.gray} />
+                      <Text style={styles.suggestionText}>{suggestion}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+
+            {/* Local específico */}
+            <View style={styles.field}>
+              <Text style={styles.label}>Local específico (sugestão) *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex: Parque Ibirapuera, próximo ao lago, bar 'O Maluco'"
+                value={specificLocation}
+                onChangeText={setSpecificLocation}
+              />
+              <Text style={styles.helperText}>
+                Dê uma sugestão de onde encontrarmos ou onde iremos
+              </Text>
             </View>
 
             {/* Data e Hora */}
@@ -307,7 +352,7 @@ export default function CreateDateScreen() {
 
             {/* Tipo */}
             <View style={styles.field}>
-              <Text style={styles.label}>Tipo de rolê</Text>
+              <Text style={styles.label}>Tipo de date</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -337,7 +382,7 @@ export default function CreateDateScreen() {
 
             {/* Vibe/Tone */}
             <View style={styles.field}>
-              <Text style={styles.label}>Vibe do rolê</Text>
+              <Text style={styles.label}>Vibe do date</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -435,7 +480,7 @@ export default function CreateDateScreen() {
               ) : (
                 <>
                   <Ionicons name="rocket" size={20} color={Colors.white} />
-                  <Text style={styles.submitButtonText}>Lançar rolê</Text>
+                  <Text style={styles.submitButtonText}>Lançar date</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -491,8 +536,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    minHeight: 100,
-    textAlignVertical: 'top',
   },
   charCount: {
     fontSize: 12,
@@ -500,6 +543,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     textAlign: 'right',
     marginTop: 4,
+  },
+  helperText: {
+    fontSize: 12,
+    color: Colors.gray,
+    fontFamily: 'Inter-Regular',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  suggestionsContainer: {
+    marginTop: Spacing.sm,
+  },
+  suggestionsContent: {
+    paddingRight: Spacing.lg,
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.lightGray,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    marginRight: Spacing.sm,
+  },
+  suggestionText: {
+    fontSize: 12,
+    color: Colors.black,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 4,
   },
   row: {
     flexDirection: 'row',

@@ -167,6 +167,17 @@ export const clientesApi = {
       throw error;
     }
   },
+
+  updateCliente: async (clienteData: any) => {
+    try {
+      const response = await api.put('', clienteData);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao criar cliente:', error);
+      throw error;
+    }
+  },
+  
 };
 
 // Interceptor para logs (opcional)
