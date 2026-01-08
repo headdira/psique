@@ -2,40 +2,20 @@
   "expo": {
     "name": "psique",
     "slug": "psique",
-    "scheme": "psique",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F5F4F2"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.psique.app"
-    },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F5F4F2"
+      "splash": {
+        "resizeMode": "contain",
+        "backgroundColor": "#ffffff"
       },
-      "package": "com.psique.app"
+      "package": "com.gersonrodrigues.psique"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "ios": {
+      "bundleIdentifier": "com.gersonrodrigues.psique"
     },
-    "plugins": [
-      "expo-router",
-      "expo-font"
-    ],
     "extra": {
-      "router": {
-        "origin": false
+      "eas": {
+        "projectId": "00730099-3288-47ae-a9ed-c5ef75db32ea"
       }
     }
   }

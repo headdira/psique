@@ -10,9 +10,11 @@ import {
   RefreshControl,
   Animated,
   Easing,
-  Alert
+  Navigation,
+  Alert,
+  SafeAreaView,
+  ScrollView
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors } from '../src/theme/index';
@@ -89,20 +91,6 @@ const DateCard = ({ date, onPress }: any) => {
           )}
         </View>
         
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: date?.image || getImageForType('outro') }} style={styles.cardImage} />
-          <View style={styles.typeBadge}>
-            <Ionicons 
-              name={getIconForType(date?.type) as any} 
-              size={12} 
-              color={Colors.white} 
-            />
-            <Text style={styles.typeText}>
-              {getTypeLabel(date?.type)}
-            </Text>
-          </View>
-        </View>
-        
         <View style={styles.cardContent}>
           <View style={styles.locationRow}>
             <Ionicons name="location" size={14} color={BrandColors.gray} />
@@ -164,13 +152,21 @@ const DateDetailsModal = ({
   const [isResponding, setIsResponding] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(300));
+  const [creatorName, setCreatorName] = useState('Organizador');
   
   useEffect(() => {
     if (visible && date && userStatus?.user_status === 'creator') {
       loadSubmissions();
     }
     
-    if (visible) {
+    if (visible && date) {
+      // Configurar nome do criador
+      if (date.creator_name) {
+        setCreatorName(date.creator_name);
+      } else {
+        setCreatorName('Organizador');
+      }
+      
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -265,9 +261,53 @@ const DateDetailsModal = ({
     }
   };
   
-  const handleStartChat = (submission: any) => {
+  // Função CORRIGIDA para iniciar chat
+  const handleStartChat = (submission: any, isHost = false) => {
+    if (!user?.id) return;
+    
+    // Determinar IDs dos participantes
+    let user1, user2, otherUserName;
+    
+    if (isHost) {
+      // Conversar com o host (criador do date)
+      user1 = user.id;
+      user2 = date?.creator_user_id;
+      otherUserName = creatorName;
+    } else {
+      // Conversar com um participante aceito
+      user1 = user.id;
+      user2 = submission.user_id;
+      otherUserName = submission.user_name;
+    }
+    
+    if (!user2) {
+      Alert.alert('Erro', 'Não foi possível identificar o outro usuário');
+      return;
+    }
+    
+    // Gerar chat_id no formato correto (IDs ordenados)
+    const ids = [user1, user2].sort();
+    const chatId = `${ids[0]}_${ids[1]}`;
+    
+    console.log('Navegando para chat:', {
+      chatId,
+      with: otherUserName,
+      isHost,
+      user1,
+      user2
+    });
+    
     onClose();
-    router.push(`/messages/${submission.user_id}?name=${submission.user_name}`);
+    
+    // Navegar para a tela de chat
+    router.push({
+      pathname: `/messages`,
+      params: { 
+        name: otherUserName,
+        other_user_id: user2,
+        is_host_chat: isHost ? 'true' : 'false'
+      }
+    });
   };
   
   const handleSaveEdit = async () => {
@@ -428,7 +468,7 @@ const DateDetailsModal = ({
       {submission.status === 'accepted' && userStatus?.user_status === 'creator' && (
         <TouchableOpacity 
           style={styles.chatButton}
-          onPress={() => handleStartChat(submission)}
+          onPress={() => handleStartChat(submission, false)}
         >
           <Ionicons name="chatbubble" size={16} color={Colors.white} />
           <Text style={styles.chatButtonText}>Conversar</Text>
@@ -576,7 +616,7 @@ const DateDetailsModal = ({
                 </Text>
                 <TouchableOpacity 
                   style={styles.chatButton}
-                  onPress={() => handleStartChat({ user_id: user?.id, user_name: user?.nome })}
+                  onPress={() => handleStartChat(null, true)}
                 >
                   <Ionicons name="chatbubble" size={16} color={Colors.white} />
                   <Text style={styles.chatButtonText}>Conversar com o host</Text>
@@ -699,7 +739,7 @@ const DateDetailsModal = ({
             </View>
             <TouchableOpacity 
               style={styles.chatPromptButton}
-              onPress={() => handleStartChat(acceptedUser)}
+              onPress={() => navigation.navigate('/messages')}
             >
               <Ionicons name="chatbubble" size={18} color={Colors.white} />
               <Text style={styles.chatPromptButtonText}>Conversar agora</Text>
@@ -790,6 +830,8 @@ export default function HomeScreen() {
               userStatus,
               mySubmission,
               apiData: apiDate,
+              creator_user_id: apiDate.creator_user_id,
+              creator_name: apiDate.creator_name || 'Organizador',
             };
           })
         );
@@ -1028,7 +1070,7 @@ export default function HomeScreen() {
       >
         <View style={styles.greeting}>
           <Text style={styles.greetingText}>Oi, {user?.nome?.split(' ')[0] || 'amigo'} 👋</Text>
-          <Text style={styles.greetingSub}>Dates com vibe real</Text>
+          <Text style={styles.greetingSub}>Precisando de um date?</Text>
         </View>
         
         <View style={styles.quickActions}>

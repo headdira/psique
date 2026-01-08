@@ -85,7 +85,7 @@ export default function CreateDateScreen() {
 
   const handleSubmit = async () => {
     if (!user?.id) {
-      Alert.alert('Erro', 'Você precisa estar logado para criar um rolê');
+      Alert.alert('Erro', 'Você precisa estar logado para criar um date');
       return;
     }
 
@@ -136,7 +136,7 @@ export default function CreateDateScreen() {
       }
     } catch (error: any) {
       console.error('Erro ao criar date:', error);
-      Alert.alert('Erro', error.message || 'Não foi possível criar o rolê');
+      Alert.alert('Erro', error.message || 'Não foi possível criar o date');
       setLoading(false);
     }
   };
@@ -160,10 +160,10 @@ export default function CreateDateScreen() {
           <Ionicons name="checkmark-circle" size={120} color={Colors.green} />
         </View>
         
-        <Text style={styles.successTitle}>🎉 Rolê criado com sucesso!</Text>
+        <Text style={styles.successTitle}>🎉 date criado com sucesso!</Text>
         
         <Text style={styles.successMessage}>
-          Seu rolê já está disponível para outras pessoas encontrarem. 
+          Seu date já está disponível para outras pessoas encontrarem. 
           Em breve você receberá notificações de interessados!
         </Text>
 
@@ -202,7 +202,7 @@ export default function CreateDateScreen() {
               resetForm();
             }}
           >
-            <Text style={styles.createAnotherButtonText}>Criar outro rolê</Text>
+            <Text style={styles.createAnotherButtonText}>Criar outro date</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -225,7 +225,7 @@ export default function CreateDateScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color={Colors.black} />
             </TouchableOpacity>
-            <Text style={styles.title}>Criar novo rolê</Text>
+            <Text style={styles.title}>Criar novo date</Text>
             <View style={{ width: 24 }} />
           </View>
 
@@ -309,7 +309,7 @@ export default function CreateDateScreen() {
 
             {/* Tipo */}
             <View style={styles.field}>
-              <Text style={styles.label}>Tipo de rolê</Text>
+              <Text style={styles.label}>Tipo de date</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -339,7 +339,7 @@ export default function CreateDateScreen() {
 
             {/* Vibe/Tone */}
             <View style={styles.field}>
-              <Text style={styles.label}>Vibe do rolê</Text>
+              <Text style={styles.label}>Vibe do date</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -437,7 +437,7 @@ export default function CreateDateScreen() {
               ) : (
                 <>
                   <Ionicons name="rocket" size={20} color={Colors.white} />
-                  <Text style={styles.submitButtonText}>Lançar rolê</Text>
+                  <Text style={styles.submitButtonText}>Lançar date</Text>
                 </>
               )}
             </TouchableOpacity>

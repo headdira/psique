@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   Alert,
   Modal,
   TextInput,
-  StyleSheet
+  StyleSheet,
+  Platform,
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useNavigation, useFocusEffect } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -60,6 +62,24 @@ export default function ProfileScreen() {
     gosto_music: '',
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const navigation = useNavigation();
+
+  // Remover header nativo do Expo
+  useFocusEffect(
+    useCallback(() => {
+      // Configurar header options
+      navigation.setOptions({
+        headerShown: false,
+      });
+      
+      return () => {
+        // Resetar header quando sair da tela (opcional)
+        navigation.setOptions({
+          headerShown: undefined,
+        });
+      };
+    }, [navigation])
+  );
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -256,12 +276,28 @@ export default function ProfileScreen() {
     <Modal visible={showEditModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowEditModal(false)}>
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowEditModal(false)}>
-            <Text style={styles.modalCloseText}>Cancelar</Text>
+          {/* Container com área clicável maior */}
+          <TouchableOpacity 
+            style={styles.modalCloseButtonContainer}
+            activeOpacity={0.7}
+            onPress={() => setShowEditModal(false)}
+          >
+            <View style={styles.modalCloseButtonContent}>
+              <Text style={styles.modalCloseText}>Cancelar</Text>
+            </View>
           </TouchableOpacity>
+          
           <Text style={styles.modalTitle}>Editar Perfil</Text>
-          <TouchableOpacity style={styles.modalSaveButton} onPress={saveProfile}>
-            <Text style={styles.modalSaveText}>Salvar</Text>
+          
+          {/* Container com área clicável maior */}
+          <TouchableOpacity 
+            style={styles.modalSaveButtonContainer}
+            activeOpacity={0.7}
+            onPress={saveProfile}
+          >
+            <View style={styles.modalSaveButtonContent}>
+              <Text style={styles.modalSaveText}>Salvar</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -323,13 +359,32 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      
+      {/* Header personalizado com área clicável maior */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={28} color={BrandColors.black} />
+        {/* Container com área clicável maior para voltar */}
+        <TouchableOpacity 
+          style={styles.backButtonContainer}
+          activeOpacity={0.7}
+          onPress={handleBack}
+        >
+          <View style={styles.backButtonContent}>
+            <Ionicons name="chevron-back" size={28} color={BrandColors.black} />
+          </View>
         </TouchableOpacity>
+        
         <Text style={styles.headerTitle}>Perfil</Text>
-        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-          <Ionicons name="pencil-outline" size={24} color={BrandColors.black} />
+        
+        {/* Container com área clicável maior para editar */}
+        <TouchableOpacity 
+          style={styles.editButtonContainer}
+          activeOpacity={0.7}
+          onPress={handleEditProfile}
+        >
+          <View style={styles.editButtonContent}>
+            <Ionicons name="pencil-outline" size={24} color={BrandColors.black} />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -413,6 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: BrandColors.offWhite,
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
   },
   loadingText: {
     marginTop: Spacing.md,
@@ -424,35 +480,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
+    paddingBottom: 16,
+    backgroundColor: BrandColors.offWhite,
     borderBottomWidth: 1,
     borderBottomColor: BrandColors.lightGray,
-    backgroundColor: BrandColors.offWhite,
-    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  backButton: {
-    padding: Spacing.sm,
-    marginLeft: -Spacing.sm,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
+  // Container maior para área clicável do botão voltar
+  backButtonContainer: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingVertical: 16,
+    minWidth: 60, // Área mínima clicável
     alignItems: 'flex-start',
+  },
+  // Conteúdo dentro do container do botão voltar
+  backButtonContent: {
+    padding: 4,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: BrandColors.black,
     fontFamily: 'Montserrat-Bold',
+    flex: 1,
+    textAlign: 'center',
   },
-  editButton: {
-    padding: Spacing.sm,
-    marginRight: -Spacing.sm,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
+  // Container maior para área clicável do botão editar
+  editButtonContainer: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingVertical: 16,
+    minWidth: 60, // Área mínima clicável
     alignItems: 'flex-end',
+  },
+  // Conteúdo dentro do container do botão editar
+  editButtonContent: {
+    padding: 4,
   },
   content: {
     flex: 1,
@@ -658,9 +727,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: BrandColors.lightGray,
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
   },
-  modalCloseButton: {
-    padding: Spacing.xs,
+  // Container maior para área clicável do botão cancelar
+  modalCloseButtonContainer: {
+    padding: 8,
+    minWidth: 80,
+  },
+  modalCloseButtonContent: {
+    padding: 4,
   },
   modalCloseText: {
     fontSize: 16,
@@ -673,8 +748,13 @@ const styles = StyleSheet.create({
     color: BrandColors.black,
     fontFamily: 'Montserrat-Bold',
   },
-  modalSaveButton: {
-    padding: Spacing.xs,
+  // Container maior para área clicável do botão salvar
+  modalSaveButtonContainer: {
+    padding: 8,
+    minWidth: 80,
+  },
+  modalSaveButtonContent: {
+    padding: 4,
   },
   modalSaveText: {
     fontSize: 16,

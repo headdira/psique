@@ -1,4 +1,4 @@
-// MessagesListScreen.js - Versão simplificada
+// MessagesListScreen.js
 import { useState, useCallback } from 'react';
 import { 
   View, 
@@ -8,9 +8,11 @@ import {
   Image, 
   ActivityIndicator, 
   RefreshControl,
-  StyleSheet
+  StyleSheet,
+  Platform,
+  StatusBar
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router'; 
+import { router, useFocusEffect, useNavigation } from 'expo-router'; 
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../../src/contexts/AuthContext'; 
@@ -21,6 +23,24 @@ export default function MessagesListScreen() {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const navigation = useNavigation();
+
+  // Remover header nativo do Expo
+  useFocusEffect(
+    useCallback(() => {
+      // Configurar header options
+      navigation.setOptions({
+        headerShown: false,
+      });
+      
+      return () => {
+        // Resetar header quando sair da tela (opcional)
+        navigation.setOptions({
+          headerShown: undefined,
+        });
+      };
+    }, [navigation])
+  );
 
   const loadChats = async () => {
     if (!user?.id) {
@@ -104,6 +124,11 @@ export default function MessagesListScreen() {
     }
   };
 
+  // Função para navegar de volta para Home
+  const goBackToHome = () => {
+      router.replace('/HomeScreen');
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.chatItem} 
@@ -161,6 +186,7 @@ export default function MessagesListScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
         <ActivityIndicator size="large" color="#5FF0A9" />
         <Text style={styles.loadingText}>Carregando conversas...</Text>
       </View>
@@ -169,11 +195,32 @@ export default function MessagesListScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      
+      {/* Header personalizado com botão de voltar igual ao Profile */}
       <View style={styles.header}>
+        {/* Área clicável maior para o botão de voltar - MESMO ICONE DO PROFILE */}
+        <TouchableOpacity 
+          onPress={goBackToHome} 
+          style={styles.backButtonContainer}
+          activeOpacity={0.7}
+        >
+          <View style={styles.backButtonContent}>
+            <Ionicons name="chevron-back" size={28} color="#0E0E0E" />
+          </View>
+        </TouchableOpacity>
+        
         <Text style={styles.headerTitle}>Conversas</Text>
-        <TouchableOpacity onPress={loadChats} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={24} color="#5FF0A9" />
+        
+        {/* Área clicável maior para o botão de refresh */}
+        <TouchableOpacity 
+          onPress={loadChats} 
+          style={styles.refreshButtonContainer}
+          activeOpacity={0.7}
+        >
+          <View style={styles.refreshButtonContent}>
+            <Ionicons name="refresh" size={24} color="#5FF0A9" />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -210,6 +257,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F8F9FA',
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
   },
   loadingText: {
     marginTop: 12,
@@ -220,23 +268,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
     paddingBottom: 16,
-    paddingHorizontal: 20,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  // Container maior para área clicável - MESMO DO PROFILE
+  backButtonContainer: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingVertical: 16,
+    minWidth: 60, // Área mínima clicável
+    alignItems: 'flex-start',
+  },
+  // Conteúdo dentro do container - MESMO DO PROFILE
+  backButtonContent: {
+    padding: 4,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 18, // Tamanho igual ao Profile (era 20)
     fontWeight: '700',
     color: '#212529',
+    flex: 1,
+    textAlign: 'center',
   },
-  refreshButton: {
-    padding: 8,
+  // Container maior para área clicável do refresh
+  refreshButtonContainer: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingVertical: 16,
+    minWidth: 60, // Área mínima clicável
+    alignItems: 'flex-end',
+  },
+  // Conteúdo dentro do container
+  refreshButtonContent: {
+    padding: 4,
   },
   listContent: {
     padding: 16,
+    paddingTop: 8,
   },
   chatItem: {
     flexDirection: 'row',
