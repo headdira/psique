@@ -109,7 +109,7 @@ const DateCard = ({ date, onPress }: any) => {
             <Text style={styles.locationText}>{date?.city || 'Local'}</Text>
           </View>
           
-          <Text style={styles.cardTitle}>{date?.title || 'Rolê sem nome'}</Text>
+          <Text style={styles.cardTitle}>{date?.title || 'Date sem nome'}</Text>
           <Text style={styles.cardDescription} numberOfLines={2}>
             {date?.description || 'Vibe real, conexão de verdade.'}
           </Text>
@@ -283,7 +283,7 @@ const DateDetailsModal = ({
       });
       
       if (response.ok) {
-        Alert.alert('✅ Feito!', 'Rolê atualizado!');
+        Alert.alert('✅ Feito!', 'Date atualizado!');
         setIsEditing(false);
         loadDates();
       } else {
@@ -329,7 +329,7 @@ const DateDetailsModal = ({
     
     Alert.alert(
       'Cancelar inscrição',
-      'Certeza que quer pular desse rolê?',
+      'Certeza que quer pular desse Date?',
       [
         { text: 'Fica', style: 'cancel' },
         {
@@ -442,7 +442,7 @@ const DateDetailsModal = ({
       style={[styles.editForm, { opacity: fadeAnim }]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.sectionTitle}>Editar rolê</Text>
+      <Text style={styles.sectionTitle}>Editar Date</Text>
       
       <View style={styles.formGroup}>
         <Text style={styles.label}>Descrição</Text>
@@ -450,7 +450,7 @@ const DateDetailsModal = ({
           style={styles.input}
           value={editData.description}
           onChangeText={(text) => setEditData({...editData, description: text})}
-          placeholder="Qual a vibe do rolê?"
+          placeholder="Qual a vibe do Date?"
           multiline
           numberOfLines={3}
           placeholderTextColor={BrandColors.gray}
@@ -509,7 +509,7 @@ const DateDetailsModal = ({
         </View>
       </View>
       
-      <Text style={styles.detailTitle}>{date?.title || 'Rolê sem nome'}</Text>
+      <Text style={styles.detailTitle}>{date?.title || 'Date sem nome'}</Text>
       <Text style={styles.detailDescription}>{date?.description || 'Vibe real, conexão de verdade.'}</Text>
       
       <View style={styles.infoSection}>
@@ -572,7 +572,7 @@ const DateDetailsModal = ({
               <View style={styles.statusContent}>
                 <Text style={styles.statusTitleAccepted}>🎉 Aceito!</Text>
                 <Text style={styles.statusMessage}>
-                  Sua vibe foi aprovada! Você tá confirmado nesse rolê.
+                  Sua vibe foi aprovada! Você tá confirmado nesse Date.
                 </Text>
                 <TouchableOpacity 
                   style={styles.chatButton}
@@ -618,7 +618,7 @@ const DateDetailsModal = ({
               
               <TextInput
                 style={styles.messageInput}
-                placeholder="Fala pro organizador porque você quer entrar nesse rolê..."
+                placeholder="Fala pro organizador porque você quer entrar nesse Date..."
                 value={message}
                 onChangeText={setMessage}
                 multiline
@@ -662,7 +662,7 @@ const DateDetailsModal = ({
             <Ionicons name="arrow-back" size={24} color={BrandColors.black} />
           </TouchableOpacity>
           <Text style={styles.modalTitle}>
-            {isEditing ? 'Editar rolê' : 'Detalhes'}
+            {isEditing ? 'Editar Date' : 'Detalhes'}
           </Text>
           
           {userStatus?.user_status === 'creator' && !isEditing && (
@@ -773,7 +773,7 @@ export default function HomeScreen() {
             
             return {
               id: apiDate.id || `temp-${index}`,
-              title: apiDate.description?.split('.')[0]?.substring(0, 30) || apiDate.type || 'Rolê sem nome',
+              title: apiDate.description?.split('.')[0]?.substring(0, 30) || apiDate.type || 'Date sem nome',
               description: apiDate.description || '',
               image: getImageForType(apiDate.type),
               type: apiDate.type,
@@ -873,7 +873,7 @@ export default function HomeScreen() {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color={BrandColors.green} />
-        <Text style={styles.loadingText}>Carregando rolês...</Text>
+        <Text style={styles.loadingText}>Carregando Dates...</Text>
       </View>
     );
   }
@@ -1028,7 +1028,7 @@ export default function HomeScreen() {
       >
         <View style={styles.greeting}>
           <Text style={styles.greetingText}>Oi, {user?.nome?.split(' ')[0] || 'amigo'} 👋</Text>
-          <Text style={styles.greetingSub}>Rolês com vibe real</Text>
+          <Text style={styles.greetingSub}>Dates com vibe real</Text>
         </View>
         
         <View style={styles.quickActions}>
@@ -1055,7 +1055,7 @@ export default function HomeScreen() {
         <View style={styles.datesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {activeTab === 'all' && 'Rolês próximos'}
+              {activeTab === 'all' && 'Dates próximos'}
               {activeTab === 'submitted' && 'Submetidos'}
               {activeTab === 'accepted' && 'Confirmados'}
             </Text>
@@ -1087,20 +1087,20 @@ export default function HomeScreen() {
               />
               <Text style={styles.emptyTitle}>
                 {activeTab === 'submitted' ? 'Nenhum submit ainda' :
-                 activeTab === 'accepted' ? 'Nenhum rolê aceito' :
-                 'Sem rolês por aqui'}
+                 activeTab === 'accepted' ? 'Nenhum Date aceito' :
+                 'Sem Dates por aqui'}
               </Text>
               <Text style={styles.emptyText}>
-                {activeTab === 'submitted' ? 'Encontre um rolê legal e manda ver!' :
-                 activeTab === 'accepted' ? 'Suba em mais rolês e aguarde as confirmações' :
-                 'Cria o primeiro rolê na sua área!'}
+                {activeTab === 'submitted' ? 'Encontre um Date legal e manda ver!' :
+                 activeTab === 'accepted' ? 'Suba em mais Dates e aguarde as confirmações' :
+                 'Cria o primeiro Date na sua área!'}
               </Text>
               {activeTab === 'all' && (
                 <TouchableOpacity 
                   style={styles.createButton}
                   onPress={() => router.push('/create-date')}
                 >
-                  <Text style={styles.createButtonText}>Criar meu rolê</Text>
+                  <Text style={styles.createButtonText}>Criar meu Date</Text>
                 </TouchableOpacity>
               )}
             </Animated.View>
@@ -1112,7 +1112,6 @@ export default function HomeScreen() {
       
       <View style={styles.bottomNav}>
         <NavItem icon="home" label="Início" active color={BrandColors.green} />
-        <NavItem icon="compass" label="Explorar" onPress={() => router.push('/explore')} color={BrandColors.lilac} />
         <NavItem icon="chatbubble" label="Chat" onPress={() => router.push('/messages')} color={BrandColors.peach} />
         <NavItem icon="person" label="Perfil" onPress={() => router.push('/profile')} color={BrandColors.blue} />
       </View>

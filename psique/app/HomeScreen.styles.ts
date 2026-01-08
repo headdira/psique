@@ -6,8 +6,8 @@ export const BrandColors = {
   gray: '#2B2B2B',
   offWhite: '#F5F4F2',
   green: '#5FF0A9',
-  peach: '#FFB994',
-  lilac: '#C7B5FF',
+  peach: '#2B2B2B',
+  lilac: '#2B2B2B',
   blue: '#6E8AFF',
   coral: '#FF6B8B',
   teal: '#2EE6CA'
