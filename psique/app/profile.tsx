@@ -20,19 +20,10 @@ import { Colors, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { clientesApi } from '../src/api/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Cores locais
-const BrandColors = {
-  black: '#0E0E0E',
-  gray: '#2B2B2B',
-  offWhite: '#F5F4F2',
-  green: '#5FF0A9',
-  lilac: '#C7B5FF',
-  coral: '#FF6B6B', 
-  white: '#FFFFFF',
-  lightGray: '#E5E5E5',
-  mediumGray: '#999999'
-};
+// Cores locais - usando Colors do theme
+const BrandColors = Colors;
 
 interface ProfileData {
   created_at: string;
@@ -49,10 +40,10 @@ interface ProfileData {
 }
 
 export default function ProfileScreen() {
-  const { isAuthenticated, user, logout, loading: authLoading } = useAuth();
+  const { isAuthenticated, user, logout, loading: authLoading, updateUser } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({
@@ -61,19 +52,18 @@ export default function ProfileScreen() {
     gosto_cor: '',
     gosto_music: '',
   });
+  const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const navigation = useNavigation();
 
   // Remover header nativo do Expo
   useFocusEffect(
     useCallback(() => {
-      // Configurar header options
       navigation.setOptions({
         headerShown: false,
       });
       
       return () => {
-        // Resetar header quando sair da tela (opcional)
         navigation.setOptions({
           headerShown: undefined,
         });
@@ -117,30 +107,63 @@ export default function ProfileScreen() {
       if (response.success && response.userData) {
         const apiData = response.userData;
         
-        // CORREÇÃO: Se não tiver foto, define explicitamente como NULL
-        // Isso ativa o ícone de fallback
+        // Usar o nome do usuário do AuthContext OU da API
+        const userName = user.nome || apiData.nome || 'Usuário';
         const userPhoto = (apiData.foto && apiData.foto.length > 5) ? apiData.foto : null;
 
         const profileData: ProfileData = {
           created_at: apiData.created_at || '',
-          email: apiData.email || '',
+          email: apiData.email || user.email || '',
           foto: userPhoto,
           gosto: apiData.gosto || { comida: '', cor: '', music: '' },
-          nome: apiData.nome || 'Usuário',
+          nome: userName,
           type: apiData.type || 'free',
-          updated_at: apiData.updated_at || '',
+          updated_at: apiData.updated_at || new Date().toISOString(),
         };
         setProfile(profileData);
         
+        // Atualizar editData com o nome correto
         setEditData({
-          nome: profileData.nome,
+          nome: userName,
           gosto_comida: profileData.gosto.comida || '',
           gosto_cor: profileData.gosto.cor || '',
           gosto_music: profileData.gosto.music || '',
         });
+        
+        console.log('Perfil carregado com sucesso:', profileData);
+      } else {
+        // Se não conseguir carregar da API, usar dados do AuthContext
+        const profileData: ProfileData = {
+          created_at: new Date().toISOString(),
+          email: user.email || '',
+          foto: null,
+          gosto: { comida: '', cor: '', music: '' },
+          nome: user.nome || 'Usuário',
+          type: 'free',
+          updated_at: new Date().toISOString(),
+        };
+        setProfile(profileData);
+        setEditData({
+          nome: user.nome || '',
+          gosto_comida: '',
+          gosto_cor: '',
+          gosto_music: '',
+        });
+        console.log('Usando dados do AuthContext');
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
+      // Fallback para dados do AuthContext
+      const profileData: ProfileData = {
+        created_at: new Date().toISOString(),
+        email: user?.email || '',
+        foto: null,
+        gosto: { comida: '', cor: '', music: '' },
+        nome: user?.nome || 'Usuário',
+        type: 'free',
+        updated_at: new Date().toISOString(),
+      };
+      setProfile(profileData);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -193,45 +216,113 @@ export default function ProfileScreen() {
 
   const saveProfile = async () => {
     try {
-      setLoading(true);
-      if (!profile || !user?.id) return;
+      setSaving(true);
+      
+      if (!profile || !user?.id) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
+      }
+
+      // Validar campos obrigatórios
+      if (!editData.nome.trim()) {
+        Alert.alert('Atenção', 'O nome é obrigatório');
+        setSaving(false);
+        return;
+      }
 
       const updatedData = {
-        nome: editData.nome,
+        nome: editData.nome.trim(),
         gosto: {
-          comida: editData.gosto_comida,
-          cor: editData.gosto_cor,
-          music: editData.gosto_music,
+          comida: editData.gosto_comida.trim(),
+          cor: editData.gosto_cor.trim(),
+          music: editData.gosto_music.trim(),
         },
         updated_at: new Date().toISOString(),
+        foto: profile.foto || null,
+        email: profile.email,
+        type: profile.type,
+        created_at: profile.created_at || new Date().toISOString(),
       };
 
+      console.log('Enviando dados para API:', {
+        ...updatedData,
+        id: user.id
+      });
+
       try {
+        // Tentar salvar na API
         const response = await clientesApi.createCliente({
           ...updatedData,
-          id: user.id,
-          email: profile.email,
-          type: profile.type,
-          created_at: profile.created_at,
-          foto: profile.foto // Mantém a foto atual
+          id: user.id
         });
         
         if (response.success) {
-          setProfile(prev => ({ ...prev!, ...updatedData, updated_at: updatedData.updated_at }));
-          Alert.alert('Sucesso', 'Perfil atualizado!');
+          // Atualizar estado local
+          const updatedProfile: ProfileData = {
+            ...profile,
+            nome: updatedData.nome,
+            gosto: updatedData.gosto,
+            updated_at: updatedData.updated_at,
+          };
+          
+          setProfile(updatedProfile);
+          
+          // Atualizar no AuthContext
+          await updateUser({
+            nome: updatedData.nome,
+            gosto: updatedData.gosto,
+            updated_at: updatedData.updated_at,
+          });
+          
+          // Salvar também no AsyncStorage para cache
+          try {
+            await AsyncStorage.setItem('@user_profile', JSON.stringify(updatedProfile));
+          } catch (storageError) {
+            console.error('Erro ao salvar no cache:', storageError);
+          }
+          
+          Alert.alert('Sucesso!', 'Perfil atualizado com sucesso!');
           setShowEditModal(false);
+          
         } else {
-          Alert.alert('Erro', 'Não foi possível atualizar');
+          throw new Error(response.message || 'Erro ao atualizar');
         }
-      } catch (apiError) {
-        setProfile(prev => ({ ...prev!, ...updatedData, updated_at: updatedData.updated_at }));
-        Alert.alert('Aviso', 'Perfil salvo localmente');
+      } catch (apiError: any) {
+        console.error('Erro na API, salvando localmente:', apiError);
+        
+        // Fallback: salvar localmente
+        const updatedProfile: ProfileData = {
+          ...profile,
+          nome: updatedData.nome,
+          gosto: updatedData.gosto,
+          updated_at: updatedData.updated_at,
+        };
+        
+        setProfile(updatedProfile);
+        
+        // Atualizar no AuthContext
+        await updateUser({
+          nome: updatedData.nome,
+          gosto: updatedData.gosto,
+          updated_at: updatedData.updated_at,
+        });
+        
+        // Salvar no AsyncStorage
+        try {
+          await AsyncStorage.setItem('@user_profile', JSON.stringify(updatedProfile));
+          Alert.alert('Sucesso!', 'Perfil salvo localmente!');
+        } catch (storageError) {
+          console.error('Erro ao salvar no cache:', storageError);
+          Alert.alert('Aviso', 'Perfil salvo apenas na sessão atual');
+        }
+        
         setShowEditModal(false);
       }
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao salvar');
+    } catch (error: any) {
+      console.error('Erro ao salvar perfil:', error);
+      Alert.alert('Erro', 'Não foi possível salvar o perfil: ' + error.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -254,58 +345,95 @@ export default function ProfileScreen() {
         setUploadingPhoto(true);
         const newPhotoUri = result.assets[0].uri;
         
-        // Simulação de upload
-        setTimeout(() => {
-          setProfile(prev => ({ ...prev!, foto: newPhotoUri }));
-          setUploadingPhoto(false);
-        }, 1000);
+        // Atualizar perfil com nova foto
+        if (profile) {
+          const updatedProfile = {
+            ...profile,
+            foto: newPhotoUri,
+            updated_at: new Date().toISOString()
+          };
+          setProfile(updatedProfile);
+          
+          // Atualizar no AuthContext
+          await updateUser({
+            foto: newPhotoUri,
+            updated_at: updatedProfile.updated_at,
+          });
+          
+          // Salvar no AsyncStorage
+          try {
+            await AsyncStorage.setItem('@user_profile', JSON.stringify(updatedProfile));
+          } catch (error) {
+            console.error('Erro ao salvar foto no cache:', error);
+          }
+        }
+        
+        setUploadingPhoto(false);
+        Alert.alert('Sucesso!', 'Foto atualizada!');
       }
     } catch (error) {
       setUploadingPhoto(false);
+      Alert.alert('Erro', 'Não foi possível alterar a foto');
     }
   };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return ' - ';
     try {
-      return new Date(dateString).toLocaleDateString('pt-BR');
-    } catch { return dateString; }
+      const date = new Date(dateString);
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch { 
+      return 'Data inválida';
+    }
   };
 
   const renderEditModal = () => (
-    <Modal visible={showEditModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowEditModal(false)}>
+    <Modal 
+      visible={showEditModal} 
+      animationType="slide" 
+      presentationStyle="pageSheet" 
+      onRequestClose={() => !saving && setShowEditModal(false)}
+    >
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          {/* Container com área clicável maior */}
           <TouchableOpacity 
             style={styles.modalCloseButtonContainer}
             activeOpacity={0.7}
-            onPress={() => setShowEditModal(false)}
+            onPress={() => !saving && setShowEditModal(false)}
+            disabled={saving}
           >
             <View style={styles.modalCloseButtonContent}>
-              <Text style={styles.modalCloseText}>Cancelar</Text>
+              <Text style={[styles.modalCloseText, saving && { opacity: 0.5 }]}>
+                Cancelar
+              </Text>
             </View>
           </TouchableOpacity>
           
           <Text style={styles.modalTitle}>Editar Perfil</Text>
           
-          {/* Container com área clicável maior */}
           <TouchableOpacity 
             style={styles.modalSaveButtonContainer}
             activeOpacity={0.7}
             onPress={saveProfile}
+            disabled={saving}
           >
             <View style={styles.modalSaveButtonContent}>
-              <Text style={styles.modalSaveText}>Salvar</Text>
+              {saving ? (
+                <ActivityIndicator size="small" color={BrandColors.green} />
+              ) : (
+                <Text style={styles.modalSaveText}>Salvar</Text>
+              )}
             </View>
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.modalContent}>
+        <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
           <View style={styles.editPhotoSection}>
-            <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper}>
-              
-              {/* LÓGICA DE FOTO NO MODAL */}
+            <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper} disabled={uploadingPhoto}>
               {profile?.foto ? (
                 <Image source={{ uri: profile.foto }} style={styles.editProfileImage} />
               ) : (
@@ -315,22 +443,74 @@ export default function ProfileScreen() {
               )}
               
               <View style={styles.editPhotoOverlay}>
-                <Ionicons name="camera" size={24} color={BrandColors.white} />
+                {uploadingPhoto ? (
+                  <ActivityIndicator size="small" color={BrandColors.white} />
+                ) : (
+                  <Ionicons name="camera" size={24} color={BrandColors.white} />
+                )}
               </View>
             </TouchableOpacity>
-            <Text style={styles.editPhotoText}>Alterar foto</Text>
+            <Text style={styles.editPhotoText}>
+              {uploadingPhoto ? 'Enviando...' : 'Alterar foto'}
+            </Text>
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Nome</Text>
-            <TextInput style={styles.formInput} value={editData.nome} onChangeText={(t) => setEditData({...editData, nome: t})} placeholder="Seu nome" />
+            <Text style={styles.formLabel}>Nome *</Text>
+            <TextInput 
+              style={styles.formInput} 
+              value={editData.nome} 
+              onChangeText={(t) => setEditData({...editData, nome: t})} 
+              placeholder="Seu nome" 
+              editable={!saving}
+            />
+            <Text style={styles.formHint}>Obrigatório</Text>
           </View>
-          <View style={styles.formGroup}><Text style={styles.formLabel}>Comida favorita</Text><TextInput style={styles.formInput} value={editData.gosto_comida} onChangeText={(t) => setEditData({...editData, gosto_comida: t})} placeholder="Ex: Pizza" /></View>
-          <View style={styles.formGroup}><Text style={styles.formLabel}>Cor favorita</Text><TextInput style={styles.formInput} value={editData.gosto_cor} onChangeText={(t) => setEditData({...editData, gosto_cor: t})} placeholder="Ex: Azul" /></View>
-          <View style={styles.formGroup}><Text style={styles.formLabel}>Música favorita</Text><TextInput style={styles.formInput} value={editData.gosto_music} onChangeText={(t) => setEditData({...editData, gosto_music: t})} placeholder="Ex: Eletrônica" /></View>
+          
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Comida favorita</Text>
+            <TextInput 
+              style={styles.formInput} 
+              value={editData.gosto_comida} 
+              onChangeText={(t) => setEditData({...editData, gosto_comida: t})} 
+              placeholder="Ex: Pizza, Sushi, Churrasco" 
+              editable={!saving}
+            />
+          </View>
+          
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Cor favorita</Text>
+            <TextInput 
+              style={styles.formInput} 
+              value={editData.gosto_cor} 
+              onChangeText={(t) => setEditData({...editData, gosto_cor: t})} 
+              placeholder="Ex: Azul, Verde, Roxo" 
+              editable={!saving}
+            />
+          </View>
+          
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Música favorita</Text>
+            <TextInput 
+              style={styles.formInput} 
+              value={editData.gosto_music} 
+              onChangeText={(t) => setEditData({...editData, gosto_music: t})} 
+              placeholder="Ex: Rock, Sertanejo, Eletrônica" 
+              editable={!saving}
+            />
+          </View>
+          
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Email</Text>
-            <Text style={styles.emailText}>{profile?.email}</Text>
+            <Text style={styles.emailText}>{profile?.email || user?.email}</Text>
+            <Text style={styles.formHint}>Email não pode ser alterado</Text>
+          </View>
+          
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle" size={20} color={BrandColors.green} />
+            <Text style={styles.infoBoxText}>
+              Suas preferências ajudam outras pessoas a conhecerem você melhor!
+            </Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -346,24 +526,53 @@ export default function ProfileScreen() {
       <View style={styles.gostosSection}>
         <Text style={styles.sectionTitle}>Gostos</Text>
         <View style={styles.gostosGrid}>
-          {comida ? <View style={styles.gostoChip}><Ionicons name="restaurant" size={16} color={BrandColors.green} /><Text style={styles.gostoChipText}>{comida}</Text></View> : null}
-          {cor ? <View style={styles.gostoChip}><Ionicons name="color-palette" size={16} color={BrandColors.green} /><Text style={styles.gostoChipText}>{cor}</Text></View> : null}
-          {music ? <View style={styles.gostoChip}><Ionicons name="musical-notes" size={16} color={BrandColors.green} /><Text style={styles.gostoChipText}>{music}</Text></View> : null}
+          {comida ? (
+            <View style={styles.gostoChip}>
+              <Ionicons name="restaurant" size={16} color={BrandColors.green} />
+              <Text style={styles.gostoChipText}>{comida}</Text>
+            </View>
+          ) : null}
+          {cor ? (
+            <View style={styles.gostoChip}>
+              <Ionicons name="color-palette" size={16} color={BrandColors.green} />
+              <Text style={styles.gostoChipText}>{cor}</Text>
+            </View>
+          ) : null}
+          {music ? (
+            <View style={styles.gostoChip}>
+              <Ionicons name="musical-notes" size={16} color={BrandColors.green} />
+              <Text style={styles.gostoChipText}>{music}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
     );
   };
 
-  if (authLoading || isChecking) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={BrandColors.green} /></View>;
-  if (!isAuthenticated) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={BrandColors.green} /></View>;
+  if (authLoading || isChecking) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+        <ActivityIndicator size="large" color={BrandColors.green} />
+        <Text style={styles.loadingText}>Carregando perfil...</Text>
+      </View>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={BrandColors.green} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
       
-      {/* Header personalizado com área clicável maior */}
+      {/* Header personalizado */}
       <View style={styles.header}>
-        {/* Container com área clicável maior para voltar */}
         <TouchableOpacity 
           style={styles.backButtonContainer}
           activeOpacity={0.7}
@@ -376,7 +585,6 @@ export default function ProfileScreen() {
         
         <Text style={styles.headerTitle}>Perfil</Text>
         
-        {/* Container com área clicável maior para editar */}
         <TouchableOpacity 
           style={styles.editButtonContainer}
           activeOpacity={0.7}
@@ -390,9 +598,11 @@ export default function ProfileScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>
-          <TouchableOpacity style={styles.profileImageContainer} onPress={handleEditProfile} activeOpacity={0.9}>
-            
-            {/* LÓGICA DE FOTO PRINCIPAL: SE TIVER FOTO, MOSTRA IMAGEM. SE NÃO, MOSTRA ÍCONE */}
+          <TouchableOpacity 
+            style={styles.profileImageContainer} 
+            onPress={handleEditProfile} 
+            activeOpacity={0.9}
+          >
             {profile?.foto ? (
               <Image source={{ uri: profile.foto }} style={styles.profileImage} />
             ) : (
@@ -401,12 +611,28 @@ export default function ProfileScreen() {
               </View>
             )}
 
-            {uploadingPhoto && <View style={styles.uploadingOverlay}><ActivityIndicator color={BrandColors.white} /></View>}
+            {uploadingPhoto && (
+              <View style={styles.uploadingOverlay}>
+                <ActivityIndicator color={BrandColors.white} size="large" />
+              </View>
+            )}
+            
+            <View style={styles.editIconOverlay}>
+              <Ionicons name="camera" size={20} color={BrandColors.white} />
+            </View>
           </TouchableOpacity>
-          <Text style={styles.profileName}>{profile?.nome || 'Usuário'}</Text>
-          <Text style={styles.profileEmail}>{profile?.email}</Text>
+          
+          {/* NOME DO USUÁRIO LOGADO */}
+          <Text style={styles.profileName}>
+            {user?.nome || profile?.nome || 'Usuário'}
+          </Text>
+          
+          <Text style={styles.profileEmail}>{profile?.email || user?.email}</Text>
+          
           <View style={styles.accountTypeBadge}>
-            <Text style={styles.accountTypeText}>{profile?.type === 'free' ? 'Conta Grátis' : 'Premium'}</Text>
+            <Text style={styles.accountTypeText}>
+              {profile?.type === 'free' ? 'Conta Grátis' : 'Premium'}
+            </Text>
           </View>
         </View>
 
@@ -415,29 +641,53 @@ export default function ProfileScreen() {
         <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Detalhes</Text>
           <View style={styles.infoItem}>
-            <View style={styles.infoIcon}><Ionicons name="calendar-outline" size={20} color={BrandColors.gray} /></View>
-            <View style={styles.infoContent}><Text style={styles.infoLabel}>Membro desde</Text><Text style={styles.infoValue}>{formatDate(profile?.created_at || '')}</Text></View>
+            <View style={styles.infoIcon}>
+              <Ionicons name="calendar-outline" size={20} color={BrandColors.gray} />
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Membro desde</Text>
+              <Text style={styles.infoValue}>
+                {formatDate(profile?.created_at || new Date().toISOString())}
+              </Text>
+            </View>
           </View>
+          
           <View style={styles.infoItem}>
-            <View style={styles.infoIcon}><Ionicons name="refresh-outline" size={20} color={BrandColors.gray} /></View>
-            <View style={styles.infoContent}><Text style={styles.infoLabel}>Última atualização</Text><Text style={styles.infoValue}>{formatDate(profile?.updated_at || '')}</Text></View>
+            <View style={styles.infoIcon}>
+              <Ionicons name="refresh-outline" size={20} color={BrandColors.gray} />
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Última atualização</Text>
+              <Text style={styles.infoValue}>
+                {formatDate(profile?.updated_at || new Date().toISOString())}
+              </Text>
+            </View>
           </View>
         </View>
 
         <View style={styles.settingsSection}>
           <Text style={styles.sectionTitle}>Opções</Text>
+          
           <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}><Ionicons name="notifications-outline" size={22} /></View>
+            <View style={styles.settingIcon}>
+              <Ionicons name="notifications-outline" size={22} color={BrandColors.black} />
+            </View>
             <Text style={styles.settingText}>Notificações</Text>
             <Ionicons name="chevron-forward" size={18} color={BrandColors.gray} />
           </TouchableOpacity>
+          
           <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}><Ionicons name="lock-closed-outline" size={22} /></View>
+            <View style={styles.settingIcon}>
+              <Ionicons name="lock-closed-outline" size={22} color={BrandColors.black} />
+            </View>
             <Text style={styles.settingText}>Privacidade</Text>
             <Ionicons name="chevron-forward" size={18} color={BrandColors.gray} />
           </TouchableOpacity>
+          
           <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}><Ionicons name="help-circle-outline" size={22} /></View>
+            <View style={styles.settingIcon}>
+              <Ionicons name="help-circle-outline" size={22} color={BrandColors.black} />
+            </View>
             <Text style={styles.settingText}>Ajuda & Suporte</Text>
             <Ionicons name="chevron-forward" size={18} color={BrandColors.gray} />
           </TouchableOpacity>
@@ -491,15 +741,13 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  // Container maior para área clicável do botão voltar
   backButtonContainer: {
     paddingLeft: 16,
     paddingRight: 16,
     paddingVertical: 16,
-    minWidth: 60, // Área mínima clicável
+    minWidth: 60,
     alignItems: 'flex-start',
   },
-  // Conteúdo dentro do container do botão voltar
   backButtonContent: {
     padding: 4,
   },
@@ -511,15 +759,13 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
-  // Container maior para área clicável do botão editar
   editButtonContainer: {
     paddingLeft: 16,
     paddingRight: 16,
     paddingVertical: 16,
-    minWidth: 60, // Área mínima clicável
+    minWidth: 60,
     alignItems: 'flex-end',
   },
-  // Conteúdo dentro do container do botão editar
   editButtonContent: {
     padding: 4,
   },
@@ -562,6 +808,19 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  editIconOverlay: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    backgroundColor: BrandColors.green,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: BrandColors.white,
   },
   profileName: {
     fontSize: 28,
@@ -686,18 +945,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: BrandColors.white,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
+    marginHorizontal: 24,
+    marginBottom: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: BrandColors.coral,
-    gap: Spacing.sm,
+    borderColor: '#FF6B6B',
+    gap: 8,
   },
   logoutText: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
-    color: BrandColors.coral,
+    color: '#FF6B6B',
   },
   footer: {
     alignItems: 'center',
@@ -709,11 +968,6 @@ const styles = StyleSheet.create({
     color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
     marginBottom: Spacing.xs,
-  },
-  footerText: {
-    fontSize: 13,
-    color: BrandColors.gray,
-    fontFamily: 'Inter-Regular',
   },
   modalContainer: {
     flex: 1,
@@ -729,7 +983,6 @@ const styles = StyleSheet.create({
     borderBottomColor: BrandColors.lightGray,
     paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
   },
-  // Container maior para área clicável do botão cancelar
   modalCloseButtonContainer: {
     padding: 8,
     minWidth: 80,
@@ -748,7 +1001,6 @@ const styles = StyleSheet.create({
     color: BrandColors.black,
     fontFamily: 'Montserrat-Bold',
   },
-  // Container maior para área clicável do botão salvar
   modalSaveButtonContainer: {
     padding: 8,
     minWidth: 80,
@@ -765,6 +1017,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
   },
   editPhotoSection: {
     alignItems: 'center',
@@ -818,15 +1071,38 @@ const styles = StyleSheet.create({
     color: BrandColors.black,
     fontFamily: 'Inter-Regular',
   },
+  formHint: {
+    fontSize: 12,
+    color: BrandColors.gray,
+    fontFamily: 'Inter-Regular',
+    marginTop: 4,
+  },
   emailText: {
     fontSize: 16,
     color: BrandColors.black,
     fontFamily: 'Inter-Regular',
     marginBottom: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: BrandColors.offWhite,
+    borderRadius: BorderRadius.sm,
   },
-  emailNote: {
-    fontSize: 13,
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(95, 240, 169, 0.1)',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: BrandColors.green,
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  infoBoxText: {
+    fontSize: 14,
     color: BrandColors.gray,
     fontFamily: 'Inter-Regular',
+    flex: 1,
+    lineHeight: 20,
   },
 });

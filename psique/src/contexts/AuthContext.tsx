@@ -14,6 +14,9 @@ import {
   UserData
 } from '../api/api';
 
+// Importar a API de chat para cache de nomes
+import { chatApi } from '../api/apiChat';
+
 // Garante que o navegador feche corretamente após o retorno
 WebBrowser.maybeCompleteAuthSession();
 
@@ -68,6 +71,79 @@ if (!global.atob) {
   };
 }
 
+// Função para salvar sessão COM CACHE DE NOME
+const saveUserSessionWithCache = async (
+  userId: string, 
+  userData: UserData, 
+  email: string, 
+  token?: string
+): Promise<boolean> => {
+  try {
+    const pairs: [string, string][] = [
+      ['@psique:user_id', userId],
+      ['@psique:user_data', JSON.stringify(userData)],
+      ['@psique:user_email', email],
+    ];
+
+    if (token) {
+      pairs.push(['@psique:session_token', token]);
+    }
+
+    await AsyncStorage.multiSet(pairs);
+    
+    // SALVA O NOME NO CACHE DE USUÁRIOS PARA OS CHATS
+    if (userData.nome && userData.nome !== 'Usuário') {
+      try {
+        await chatApi.cacheUserInfo(userId, userData.nome, userData.foto);
+        console.log(`✅ Nome cacheado para chats: ${userData.nome} (ID: ${userId})`);
+      } catch (cacheError) {
+        console.error('Erro ao cachear nome do usuário:', cacheError);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Erro ao salvar sessão:', error);
+    return false;
+  }
+};
+
+// Função para limpar sessão
+const clearUserSession = async (): Promise<boolean> => {
+  try {
+    await AsyncStorage.multiRemove([
+      '@psique:user_id',
+      '@psique:user_data',
+      '@psique:user_email',
+      '@psique:session_token',
+    ]);
+    return true;
+  } catch (error) {
+    console.error('Erro ao limpar sessão:', error);
+    return false;
+  }
+};
+
+// Getters
+const getStoredUserId = async (): Promise<string | null> => {
+  return AsyncStorage.getItem('@psique:user_id');
+};
+
+const getStoredUserData = async (): Promise<UserData | null> => {
+  const data = await AsyncStorage.getItem('@psique:user_data');
+  return data ? JSON.parse(data) : null;
+};
+
+const getStoredUserEmail = async (): Promise<string | null> => {
+  return AsyncStorage.getItem('@psique:user_email');
+};
+
+const checkUserLoggedIn = async (): Promise<boolean> => {
+  const token = await AsyncStorage.getItem('@psique:session_token');
+  const userId = await getStoredUserId();
+  return !!(token && userId);
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [user, setUser] = useState<UserData | null>(null);
@@ -76,7 +152,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Manipula o retorno do Navegador (Deep Link)
   const handleBrowserReturn = async (result: WebBrowser.WebBrowserAuthSessionResult) => {
     if (result.type === 'success' && result.url) {
-      // Extrai os parâmetros da URL de retorno
       const { queryParams } = Linking.parse(result.url);
       
       const gToken = queryParams?.['g_token'];
@@ -97,7 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             gosto: {} 
           };
           
-          await saveUserSession(userData.id, userData, userData.email, gToken);
+          await saveUserSessionWithCache(userData.id, userData, userData.email, gToken);
           setUser(userData);
           setIsAuthenticated(true);
           return { success: true, message: 'Autenticado com sucesso' };
@@ -116,12 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // === CORREÇÃO CRUCIAL ===
-      // Cria a URL de retorno dinâmica (ex: exp://192.168.x.x:8081 no Expo Go)
       const redirectUri = Linking.createURL('/'); 
-      
-      // Anexa o redirect_uri na URL do site de login
-      // O site BoraBaby DEVE ler esse parâmetro e usá-lo para redirecionar de volta
       const authUrl = `https://borababy.netlify.app/?mode=google&redirect_uri=${encodeURIComponent(redirectUri)}`; 
       
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
@@ -136,7 +206,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async () => {
     try {
       setLoading(true);
-      // === CORREÇÃO CRUCIAL (MESMA LÓGICA) ===
       const redirectUri = Linking.createURL('/'); 
       const authUrl = `https://borababy.netlify.app/?mode=signup&redirect_uri=${encodeURIComponent(redirectUri)}`; 
       
@@ -157,15 +226,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await clientesApi.getClienteByEmail(email);
       
       if (result.success && result.userId && result.userData) {
-        const saved = await saveUserSession(result.userId, result.userData, result.userData.email);
+        // Usa a nova função com cache
+        const saved = await saveUserSessionWithCache(
+          result.userId, 
+          result.userData, 
+          result.userData.email
+        );
         
         if (saved) {
-          setUser({ ...result.userData, id: result.userId, email: result.userData.email });
+          const userData = { ...result.userData, id: result.userId, email: result.userData.email };
+          setUser(userData);
           setIsAuthenticated(true);
           return { 
             success: true, 
             message: 'Login realizado com sucesso', 
-            user: { ...result.userData, id: result.userId, email: result.userData.email } 
+            user: userData 
           };
         }
       }
@@ -180,7 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       setLoading(true);
-      await clearSession();
+      await clearUserSession();
       setIsAuthenticated(false);
       setUser(null);
     } catch (error) {
@@ -193,15 +268,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkAuth = async () => {
     try {
       setLoading(true);
-      const loggedIn = await isLoggedIn();
+      const loggedIn = await checkUserLoggedIn();
       if (loggedIn) {
-        const userId = await getUserId();
-        const userData = await getUserData();
-        const userEmail = await getUserEmail();
+        const userId = await getStoredUserId();
+        const userData = await getStoredUserData();
+        const userEmail = await getStoredUserEmail();
         
         if (userId && userData) {
-          setUser({ ...userData, id: userId, email: userEmail || userData.email });
+          const userWithId = { ...userData, id: userId, email: userEmail || userData.email };
+          setUser(userWithId);
           setIsAuthenticated(true);
+          
+          // Cacheia o nome do usuário logado para os chats
+          if (userWithId.nome && userWithId.nome !== 'Usuário') {
+            try {
+              await chatApi.cacheUserInfo(userId, userWithId.nome, userWithId.foto);
+            } catch (cacheError) {
+              console.error('Erro ao cachear nome na verificação:', cacheError);
+            }
+          }
         } else {
           await logout();
         }
@@ -225,7 +310,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const currentToken = await AsyncStorage.getItem('@psique:session_token') || undefined;
       
-      await saveUserSession(user.id, updatedUser, updatedUser.email, currentToken);
+      // Usa a nova função com cache
+      await saveUserSessionWithCache(
+        user.id, 
+        updatedUser, 
+        updatedUser.email, 
+        currentToken
+      );
     }
   };
 
@@ -244,7 +335,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ 
-      isAuthenticated, user, loading, login, loginWithGoogle, signup, logout, checkAuth, updateUser, refreshUserData 
+      isAuthenticated, 
+      user, 
+      loading, 
+      login, 
+      loginWithGoogle, 
+      signup, 
+      logout, 
+      checkAuth, 
+      updateUser, 
+      refreshUserData 
     }}>
       {children}
     </AuthContext.Provider>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { chatApi, Message } from '../../src/api/apiChat';
+import { useUserName } from '../../src/hooks/useUserName';
 
 // Cores do projeto
 const BrandColors = {
@@ -27,28 +28,40 @@ const BrandColors = {
 };
 
 export default function ChatScreen() {
-  const { id, name } = useLocalSearchParams();
+  const { id, name, other_user_id } = useLocalSearchParams();
   const chatId = Array.isArray(id) ? id[0] : id;
-  const chatName = Array.isArray(name) ? name[0] : name;
+  const initialName = Array.isArray(name) ? name[0] : name;
+  const otherUserId = Array.isArray(other_user_id) ? other_user_id[0] : other_user_id;
   
   const { user } = useAuth();
+  const { userName: otherUserName, userPhoto: otherUserPhoto } = useUserName(otherUserId);
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
+  // Use o nome real do hook ou o inicial
+  const displayName = otherUserName !== 'Usuário' ? otherUserName : initialName;
+
   useEffect(() => {
     loadMessages();
-    // Opcional: Adicionar um polling (setInterval) aqui para buscar mensagens novas a cada X segundos
-  }, [chatId]);
+    
+    // Atualiza o título da conversa
+    if (user?.id && otherUserId) {
+      // Cache do nome atual do usuário
+      if (user.nome && user.nome !== 'Usuário') {
+        chatApi.cacheUserInfo(user.id, user.nome, user.foto);
+      }
+    }
+  }, [chatId, otherUserId]);
 
   const loadMessages = async () => {
     if (!user?.id || !chatId) return;
     try {
       const result = await chatApi.getMessages(chatId, user.id);
       if (result.success && result.data) {
-        // Inverte a ordem para o FlatList (mais recentes embaixo)
         setMessages([...result.data].reverse());
       }
     } catch (error) {
@@ -63,13 +76,11 @@ export default function ChatScreen() {
 
     setSending(true);
     try {
-      // 1. Envia para API
       const result = await chatApi.sendMessage(chatId, user.id, newMessage);
       
       if (result.success) {
         setNewMessage('');
-        // 2. Recarrega mensagens para garantir sincronia
-        await loadMessages(); 
+        await loadMessages();
       }
     } catch (error) {
       console.error('Erro ao enviar:', error);
@@ -78,7 +89,6 @@ export default function ChatScreen() {
     }
   };
 
-  // Função para formatar a hora da mensagem
   const formatTime = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -89,8 +99,6 @@ export default function ChatScreen() {
   };
 
   const renderItem = ({ item }: { item: Message }) => {
-    // === LÓGICA DE ALINHAMENTO ===
-    // Se is_mine for true, usa estilos da direita. Se false, da esquerda.
     const containerStyle = item.is_mine ? styles.myMessageContainer : styles.theirMessageContainer;
     const bubbleStyle = item.is_mine ? styles.myMessageBubble : styles.theirMessageBubble;
     const textStyle = item.is_mine ? styles.myMessageText : styles.theirMessageText;
@@ -115,13 +123,15 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Header */}
+        {/* Header com nome real */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color={BrandColors.black} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{chatName || 'Chat'}</Text>
-          <View style={{ width: 28 }} /> {/* Espaço para equilibrar o header */}
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {displayName || 'Chat'}
+          </Text>
+          <View style={{ width: 28 }} />
         </View>
 
         {/* Lista de Mensagens */}
@@ -136,7 +146,7 @@ export default function ChatScreen() {
             keyExtractor={(item) => item.id ? item.id.toString() : Math.random().toString()}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
-            inverted={true} // Mensagens novas aparecem embaixo
+            inverted={true}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -195,6 +205,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: BrandColors.black,
+    flex: 1,
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -205,53 +217,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
-  
-  // === ESTILOS DAS MENSAGENS ===
   messageRow: {
     flexDirection: 'row',
     marginVertical: 4,
     width: '100%',
   },
-  // Alinha minhas mensagens à direita
   myMessageContainer: {
     justifyContent: 'flex-end',
   },
-  // Alinha mensagens dos outros à esquerda
   theirMessageContainer: {
     justifyContent: 'flex-start',
   },
-  
   messageBubble: {
     maxWidth: '80%',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
   },
-  // Estilo do balão verde (meu)
   myMessageBubble: {
     backgroundColor: BrandColors.green,
-    borderBottomRightRadius: 4, // Dá um efeito visual no canto
+    borderBottomRightRadius: 4,
   },
-  // Estilo do balão branco (outro)
   theirMessageBubble: {
     backgroundColor: BrandColors.white,
     borderWidth: 1,
     borderColor: BrandColors.lightGray,
-    borderBottomLeftRadius: 4, // Dá um efeito visual no canto oposto
+    borderBottomLeftRadius: 4,
   },
-  
   messageText: {
     fontSize: 16,
   },
-  // Texto branco no balão verde
   myMessageText: {
     color: BrandColors.white,
   },
-  // Texto preto no balão branco
   theirMessageText: {
     color: BrandColors.black,
   },
-
   timeText: {
     fontSize: 10,
     marginTop: 4,
@@ -263,8 +264,6 @@ const styles = StyleSheet.create({
   theirMessageTime: {
     color: BrandColors.gray,
   },
-
-  // === ESTILOS DO INPUT ===
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',

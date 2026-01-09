@@ -8,6 +8,8 @@ export const Colors = {
   gray: '#888888',
   darkGray: '#2B2B2B',
   lightGray: '#E5E5E5',
+  mediumGray: '#999999', // ADICIONADO
+  coral: '#FF6B6B', // ADICIONADO
   error: '#FF6B6B',
   success: '#5FF0A9',
 };
@@ -16,9 +18,9 @@ export const Spacing = {
   xs: 4,
   sm: 8,
   md: 16,
-  lg: 24,
+  lg: 24, // ADICIONADO
   xl: 32,
-  xxl: 48, // <--- ADICIONADO PARA CORRIGIR O ERRO DE ESTILO
+  xxl: 48,
 };
 
 export const BorderRadius = {

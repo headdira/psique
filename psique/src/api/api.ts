@@ -1,3 +1,4 @@
+// /src/api/api.ts - Mantenha compatibilidade
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -13,7 +14,7 @@ const api = axios.create({
   },
 });
 
-// === 2. CHAVES DE STORAGE ===
+// === 2. CHAVES DE STORAGE (mantenha para compatibilidade) ===
 const STORAGE_KEYS = {
   USER_ID: '@psique:user_id',
   USER_DATA: '@psique:user_data',
@@ -21,7 +22,7 @@ const STORAGE_KEYS = {
   SESSION_TOKEN: '@psique:session_token', 
 } as const;
 
-// === 3. INTERFACE DO USUÁRIO (Atualizada) ===
+// === 3. INTERFACE DO USUÁRIO ===
 export interface UserData {
   id: string;
   email: string;
@@ -30,41 +31,23 @@ export interface UserData {
   type: string;
   created_at?: string;
   updated_at?: string;
-  
-  // Adicionado para suportar o perfil e gostos
   gosto?: { [key: string]: string | number | boolean }; 
-  
   [key: string]: any;
 }
 
 // === 4. INTERCEPTOR DE PROTEÇÃO ===
-// Injeta o Token em toda requisição automaticamente
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    // Log para debug
-    // console.log(`📤 [API] ${config.method?.toUpperCase()} ${config.url}`);
-    
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-api.interceptors.response.use(
-  response => response,
-  error => {
-    console.error(`[API Error] ${error.config?.url}:`, error.response?.status, error.message);
-    return Promise.reject(error);
-  }
-);
-
-// === 5. GERENCIAMENTO DE SESSÃO ===
-
-// Agora aceita token opcional para salvar login do Google
+// === 5. FUNÇÕES DE COMPATIBILIDADE (para não quebrar código existente) ===
 export const saveUserSession = async (userId: string, userData: UserData, email: string, token?: string) => {
   try {
     const pairs: [string, string][] = [
@@ -100,7 +83,6 @@ export const clearSession = async () => {
   }
 };
 
-// Getters
 export const getUserId = async () => AsyncStorage.getItem(STORAGE_KEYS.USER_ID);
 export const getUserData = async () => {
   const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
@@ -108,18 +90,14 @@ export const getUserData = async () => {
 };
 export const getUserEmail = async () => AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL);
 export const getSessionToken = async () => AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
-
 export const isLoggedIn = async (): Promise<boolean> => {
   const token = await getSessionToken();
-  // Podemos verificar o userId também para garantir
   const userId = await getUserId();
   return !!(token && userId);
 };
 
 // === 6. MÉTODOS DA API ===
-
 export const clientesApi = {
-  // Busca dados do usuário pelo Token (Rota /me ou similar)
   getMe: async () => {
     try {
       const response = await api.get('/me'); 
@@ -129,12 +107,9 @@ export const clientesApi = {
     }
   },
 
-  // Busca cliente por email
   getClienteByEmail: async (email: string) => {
     try {
-      // Endpoint otimizado para busca
       const response = await api.get(`/clientes?email=${email}`); 
-      
       const data = Array.isArray(response.data) ? response.data[0] : response.data;
       
       if (data) {
@@ -146,12 +121,9 @@ export const clientesApi = {
     }
   },
 
-  // Atualizar ou Criar Cliente
   createCliente: async (clienteData: any) => {
      try {
-       // Se tiver ID, tenta atualizar, senão cria
        if (clienteData.id) {
-          // Tenta PUT primeiro
           const response = await api.put(`/clientes/${clienteData.id}`, clienteData);
           return { success: true, data: response.data };
        } else {

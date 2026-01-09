@@ -1,4 +1,3 @@
-// MessagesListScreen.js
 import { useState, useCallback } from 'react';
 import { 
   View, 
@@ -12,35 +11,37 @@ import {
   Platform,
   StatusBar
 } from 'react-native';
-import { router, useFocusEffect, useNavigation } from 'expo-router'; 
+import { router, useFocusEffect } from 'expo-router'; 
 import { Ionicons } from '@expo/vector-icons';
-
 import { useAuth } from '../../src/contexts/AuthContext'; 
 import { chatApi } from '../../src/api/apiChat';
 
+// Cores do projeto
+const BrandColors = {
+  green: '#5FF0A9',
+  offWhite: '#F5F4F2',
+  white: '#FFFFFF',
+  black: '#0E0E0E',
+  gray: '#888888',
+  lightGray: '#E5E5E5',
+};
+
+interface ChatItemType {
+  id: string;
+  user_name: string;
+  user_photo?: string;
+  last_message?: string;
+  last_message_time?: string;
+  unread_count?: number;
+  other_user_id: string;
+  chat_data?: any;
+}
+
 export default function MessagesListScreen() {
   const { user } = useAuth();
-  const [chats, setChats] = useState([]);
+  const [chats, setChats] = useState<ChatItemType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const navigation = useNavigation();
-
-  // Remover header nativo do Expo
-  useFocusEffect(
-    useCallback(() => {
-      // Configurar header options
-      navigation.setOptions({
-        headerShown: false,
-      });
-      
-      return () => {
-        // Resetar header quando sair da tela (opcional)
-        navigation.setOptions({
-          headerShown: undefined,
-        });
-      };
-    }, [navigation])
-  );
 
   const loadChats = async () => {
     if (!user?.id) {
@@ -56,14 +57,19 @@ export default function MessagesListScreen() {
       console.log('Resultado da API:', result);
       
       if (result.success && result.data) {
-        // Converte objeto para array usando a função de formatação
-        const chatsArray = Object.values(result.data)
-          .map(chatData => chatApi.formatChatForPreview(chatData, user.id))
-          .sort((a, b) => {
-            const timeA = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
-            const timeB = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
-            return timeB - timeA;
-          });
+        // Converte objeto para array usando a função de formatação ASSÍNCRONA
+        const chatsPromises = Object.values(result.data).map(async (chatData) => {
+          return await chatApi.formatChatForPreview(chatData, user.id);
+        });
+        
+        const chatsArray = await Promise.all(chatsPromises);
+        
+        // Ordena por data
+        chatsArray.sort((a, b) => {
+          const timeA = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+          const timeB = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+          return timeB - timeA;
+        });
         
         console.log('Chats formatados:', chatsArray);
         setChats(chatsArray);
@@ -100,13 +106,13 @@ export default function MessagesListScreen() {
     loadChats();
   };
 
-  const formatMessageTime = (timestamp) => {
+  const formatMessageTime = (timestamp?: string) => {
     if (!timestamp) return '';
     
     try {
       const date = new Date(timestamp);
       const now = new Date();
-      const diffMs = now - date;
+      const diffMs = now.getTime() - date.getTime();
       const diffHours = diffMs / (1000 * 60 * 60);
       
       if (diffHours < 1) {
@@ -126,10 +132,10 @@ export default function MessagesListScreen() {
 
   // Função para navegar de volta para Home
   const goBackToHome = () => {
-      router.replace('/HomeScreen');
+    router.replace('/HomeScreen');
   };
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: ChatItemType }) => (
     <TouchableOpacity 
       style={styles.chatItem} 
       onPress={() => {
@@ -173,7 +179,7 @@ export default function MessagesListScreen() {
       </View>
 
       {/* Badge de mensagens não lidas */}
-      {item.unread_count > 0 && (
+      {item.unread_count && item.unread_count > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>
             {item.unread_count > 99 ? '99+' : item.unread_count}
@@ -199,7 +205,6 @@ export default function MessagesListScreen() {
       
       {/* Header personalizado com botão de voltar igual ao Profile */}
       <View style={styles.header}>
-        {/* Área clicável maior para o botão de voltar - MESMO ICONE DO PROFILE */}
         <TouchableOpacity 
           onPress={goBackToHome} 
           style={styles.backButtonContainer}
@@ -212,7 +217,6 @@ export default function MessagesListScreen() {
         
         <Text style={styles.headerTitle}>Conversas</Text>
         
-        {/* Área clicável maior para o botão de refresh */}
         <TouchableOpacity 
           onPress={loadChats} 
           style={styles.refreshButtonContainer}
@@ -250,19 +254,19 @@ export default function MessagesListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: BrandColors.offWhite,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: BrandColors.offWhite,
     paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: BrandColors.gray,
   },
   header: {
     flexDirection: 'row',
@@ -270,43 +274,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
     paddingBottom: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: BrandColors.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
+    borderBottomColor: BrandColors.lightGray,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 3,
   },
-  // Container maior para área clicável - MESMO DO PROFILE
   backButtonContainer: {
     paddingLeft: 16,
     paddingRight: 16,
     paddingVertical: 16,
-    minWidth: 60, // Área mínima clicável
+    minWidth: 60,
     alignItems: 'flex-start',
   },
-  // Conteúdo dentro do container - MESMO DO PROFILE
   backButtonContent: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18, // Tamanho igual ao Profile (era 20)
+    fontSize: 18,
     fontWeight: '700',
-    color: '#212529',
+    color: BrandColors.black,
     flex: 1,
     textAlign: 'center',
   },
-  // Container maior para área clicável do refresh
   refreshButtonContainer: {
     paddingLeft: 16,
     paddingRight: 16,
     paddingVertical: 16,
-    minWidth: 60, // Área mínima clicável
+    minWidth: 60,
     alignItems: 'flex-end',
   },
-  // Conteúdo dentro do container
   refreshButtonContent: {
     padding: 4,
   },
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: BrandColors.white,
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
@@ -339,14 +339,14 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#5FF0A9',
+    backgroundColor: BrandColors.green,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: BrandColors.white,
   },
   chatInfo: {
     flex: 1,
@@ -360,20 +360,20 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#212529',
+    color: BrandColors.black,
     flex: 1,
   },
   time: {
     fontSize: 12,
-    color: '#6C757D',
+    color: BrandColors.gray,
     marginLeft: 8,
   },
   lastMessage: {
     fontSize: 14,
-    color: '#6C757D',
+    color: BrandColors.gray,
   },
   badge: {
-    backgroundColor: '#5FF0A9',
+    backgroundColor: BrandColors.green,
     borderRadius: 12,
     minWidth: 24,
     height: 24,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: BrandColors.white,
     paddingHorizontal: 6,
   },
   emptyState: {
@@ -396,13 +396,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#212529',
+    color: BrandColors.black,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    color: '#6C757D',
+    color: BrandColors.gray,
     textAlign: 'center',
     lineHeight: 20,
   },

@@ -10,7 +10,6 @@ import {
   RefreshControl,
   Animated,
   Easing,
-  Navigation,
   Alert,
   SafeAreaView,
   ScrollView
@@ -738,9 +737,9 @@ const DateDetailsModal = ({
               </View>
             </View>
             <TouchableOpacity 
-              style={styles.chatPromptButton}
-              onPress={() => navigation.navigate('/messages')}
-            >
+  style={styles.chatPromptButton}
+  onPress={() => router.push('/messages')}
+>
               <Ionicons name="chatbubble" size={18} color={Colors.white} />
               <Text style={styles.chatPromptButtonText}>Conversar agora</Text>
             </TouchableOpacity>

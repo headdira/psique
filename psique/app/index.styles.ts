@@ -1,302 +1,370 @@
 import { StyleSheet, Platform } from 'react-native';
-// MANTIVE APENAS O QUE É GARANTIDO
-import { Colors, Typography, Spacing } from '../src/theme'; 
+
+// CORES ATUALIZADAS
+const Colors = {
+  black: '#0E0E0E',
+  gray: '#2B2B2B',
+  offWhite: '#F5F4F2',
+  green: '#5FF0A9',
+  peach: '#FFB994',
+  lilac: '#C7B5FF',
+  blue: '#6E8AFF',
+  coral: '#FF6B8B',
+  teal: '#2EE6CA',
+  white: '#FFFFFF',
+  lightGray: '#E5E5E5',
+  mediumGray: '#999999'
+};
 
 export const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.offWhite,
+  container: { 
+    flex: 1, 
+    backgroundColor: Colors.offWhite 
   },
+  
+  loadingScreen: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: Colors.offWhite 
+  },
+  
+  loadingText: { 
+    marginTop: 12, 
+    fontSize: 16, 
+    color: Colors.gray 
+  },
+
+  // KEYBOARD & SCROLL
   keyboardView: {
     flex: 1,
   },
+  
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: Spacing.lg,
   },
+
+  // CONTENT AREA
   content: {
     flex: 1,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.md,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 20,
   },
+
+  // HEADER
   header: {
-    marginTop: Platform.OS === 'ios' ? Spacing.lg : Spacing.xl,
-    marginBottom: Spacing.md,
-  },
-  logo: {
-    ...Typography.h1,
-    color: Colors.black,
-    letterSpacing: -1,
-    fontSize: 28,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: Spacing.md,
+    marginBottom: 40,
   },
-  tagline: {
-    ...Typography.caption,
-    color: Colors.gray,
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-    marginBottom: Spacing.lg,
-    fontSize: 10,
-  },
-  hero: {
-    marginBottom: Spacing.md,
-  },
-  heroLine1: {
-    fontSize: 40,
-    fontWeight: '300',
-    fontFamily: 'Inter-Regular', 
+  
+  logo: {
+    fontSize: 48,
+    fontWeight: '800',
     color: Colors.black,
-    textAlign: 'center',
-    lineHeight: 40,
-  },
-  heroLine2: {
-    fontSize: 40,
-    fontWeight: '900',
     fontFamily: 'Montserrat-Bold',
-    color: Colors.black,
-    textAlign: 'center',
-    lineHeight: 40,
-    letterSpacing: -1.5,
+    letterSpacing: -1,
   },
+
+  // CENTER CONTENT
+  center: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  
+  tagline: {
+    fontSize: 16,
+    color: Colors.gray,
+    marginBottom: 24,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+  },
+  
+  hero: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  
+  heroLine1: {
+    fontSize: 36,
+    fontWeight: '300',
+    color: Colors.black,
+    fontFamily: 'Inter-Light',
+    textAlign: 'center',
+  },
+  
+  heroLine2: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.black,
+    fontFamily: 'Montserrat-Bold',
+    textAlign: 'center',
+  },
+  
   description: {
-    ...Typography.body,
+    fontSize: 16,
     color: Colors.gray,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: Spacing.lg,
-    fontSize: 14,
+    marginBottom: 32,
+    lineHeight: 24,
+    fontFamily: 'Inter-Regular',
   },
+
+  // INPUT
   inputContainer: {
     width: '100%',
-    marginBottom: Spacing.sm,
+    marginBottom: 12,
   },
+  
   input: {
+    width: '100%',
+    height: 56,
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.lightGray,
-    borderRadius: 8, // Corrigido manual
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
-    fontSize: 15,
-    fontFamily: 'Inter-Regular',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
     color: Colors.black,
-    height: 48,
-    textAlign: 'center',
-  },
-  inputError: {
-    borderColor: '#FF6B6B',
-  },
-  errorText: {
-    fontSize: 11,
     fontFamily: 'Inter-Regular',
-    color: '#FF6B6B',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: Colors.green,
-    borderRadius: 12, // Corrigido manual
-    alignItems: 'center',
-    marginBottom: 0,
-    width: '100%',
-    height: 48,
-    justifyContent: 'center',
-  },
-  buttonText: {
-    ...Typography.button,
-    color: Colors.black,
-    fontSize: 15,
-    fontFamily: 'Inter-SemiBold',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
   },
   
-  // Estilos do layout compacto
+  inputError: {
+    borderColor: Colors.coral,
+  },
+  
+  errorText: {
+    color: Colors.coral,
+    fontSize: 14,
+    marginBottom: 12,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+  },
+
+  // BUTTONS
+  button: {
+    width: '100%',
+    height: 56,
+    backgroundColor: Colors.black,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  
+  buttonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  
   signupButton: {
-    marginTop: 16,
-    padding: 4,
+    marginBottom: 16,
     alignItems: 'center',
   },
+  
   signupText: {
     fontSize: 14,
     color: Colors.gray,
     fontFamily: 'Inter-Regular',
   },
+  
   signupTextBold: {
+    fontWeight: '700',
     color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Inter-Bold',
   },
+  
   forgotButtonInline: {
-    marginTop: 8,
-    padding: 4,
+    marginBottom: 24,
     alignItems: 'center',
   },
+  
   forgotTextInline: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.gray,
     fontFamily: 'Inter-Regular',
-    textDecorationLine: 'underline',
   },
 
+  // OR DIVIDER
   orContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 16,
+    marginBottom: 24,
     width: '100%',
   },
+  
   dividerLine: {
     flex: 1,
     height: 1,
     backgroundColor: Colors.lightGray,
   },
+  
   orText: {
-    ...Typography.caption,
+    marginHorizontal: 16,
     color: Colors.gray,
-    marginHorizontal: Spacing.md,
-    fontSize: 12,
-  },
-  googleButton: {
-    backgroundColor: Colors.white,
-    borderRadius: 12, // Corrigido manual
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    width: '100%',
-    height: 48,
-    marginBottom: Spacing.md,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#4285F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  googleIconText: {
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  googleButtonText: {
-    ...Typography.button,
-    color: Colors.black,
-    fontSize: 15,
-    fontFamily: 'Inter-SemiBold',
-  },
-  divider: {
-    width: 60,
-    height: 1,
-    backgroundColor: Colors.black,
-    marginVertical: Spacing.lg,
-    opacity: 0.1,
-  },
-  call: {
-    ...Typography.body,
-    color: Colors.black,
-    fontFamily: 'Inter-SemiBold',
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
     fontSize: 14,
-  },
-  footer: {
-    ...Typography.caption,
-    color: Colors.gray,
-    textAlign: 'center',
-    marginTop: 'auto',
-    paddingBottom: Spacing.lg,
-    fontSize: 11,
+    fontFamily: 'Inter-Regular',
   },
 
-  // Modal (manual styles)
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  // GOOGLE BUTTON
+  googleButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    marginBottom: 24,
   },
-  modalContent: {
-    width: '85%',
+  
+  googleIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: Colors.white,
-    borderRadius: 16, // Corrigido manual
-    padding: Spacing.xl,
+    justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
   },
-  modalTitle: {
-    ...Typography.h3,
+  
+  googleIconText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.gray,
+    fontFamily: 'Inter-Bold',
+  },
+  
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.black,
-    marginBottom: Spacing.md,
-    fontFamily: 'Montserrat-Bold',
-    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
   },
-  modalText: {
-    ...Typography.body,
+
+  // DIVIDER
+  divider: {
+    height: 1,
+    backgroundColor: Colors.lightGray,
+    marginVertical: 24,
+    width: '100%',
+  },
+  
+  call: {
+    fontSize: 16,
+    color: Colors.black,
+    fontWeight: '600',
+    marginBottom: 40,
+    fontFamily: 'Inter-SemiBold',
+    textAlign: 'center',
+  },
+  
+  footer: {
+    fontSize: 12,
     color: Colors.gray,
     textAlign: 'center',
-    marginBottom: Spacing.lg,
-    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    marginTop: 20,
   },
+
+  // MODAL STYLES
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 20,
+  },
+  
+  modalContent: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 24,
+    maxWidth: 400,
+  },
+  
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.black,
+    marginBottom: 12,
+    fontFamily: 'Inter-Bold',
+    textAlign: 'center',
+  },
+  
+  modalText: {
+    fontSize: 16,
+    color: Colors.gray,
+    marginBottom: 20,
+    lineHeight: 22,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+  },
+  
   modalInput: {
     width: '100%',
+    height: 50,
     backgroundColor: Colors.offWhite,
     borderWidth: 1,
     borderColor: Colors.lightGray,
-    borderRadius: 8, // Corrigido manual
-    paddingHorizontal: Spacing.md,
-    height: 48,
-    fontSize: 15,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
     color: Colors.black,
-    marginBottom: Spacing.lg,
-    textAlign: 'center',
+    marginBottom: 20,
+    fontFamily: 'Inter-Regular',
   },
+  
   modalButtons: {
     flexDirection: 'row',
-    width: '100%',
+    justifyContent: 'space-between',
     gap: 12,
   },
+  
   modalButton: {
     flex: 1,
-    height: 44,
-    borderRadius: 8, // Corrigido manual
+    height: 50,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  
   cancelButton: {
     backgroundColor: Colors.offWhite,
     borderWidth: 1,
     borderColor: Colors.lightGray,
   },
-  confirmButton: {
-    backgroundColor: Colors.green,
-  },
+  
   cancelButtonText: {
-    fontSize: 14,
-    color: Colors.gray,
+    fontSize: 16,
+    color: Colors.black,
+    fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
   },
+  
+  confirmButton: {
+    backgroundColor: Colors.black,
+  },
+  
   confirmButtonText: {
-    fontSize: 14,
-    color: Colors.black,
+    fontSize: 16,
+    color: Colors.white,
+    fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
   },
 });
+
+// Exportar cores também se necessário
+export { Colors };
