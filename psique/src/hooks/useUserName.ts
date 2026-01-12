@@ -12,19 +12,23 @@ export const useUserName = (userId?: string) => {
     
     setLoading(true);
     try {
-      // Tenta buscar do cache
+      // 1. Tenta buscar do cache primeiro
       const cached = await chatApi.getCachedUserInfo(userId);
       if (cached) {
         setUserName(cached.name);
         setUserPhoto(cached.photo);
+        setLoading(false); // Importante parar o loading aqui se achou no cache
         return;
       }
       
-      // Se não tem cache, busca da API
-      const userInfo = await chatApi.getUserInfo(userId);
-      setUserName(userInfo.name);
-      if (userInfo.photo) {
-        setUserPhoto(userInfo.photo);
+      // 2. Se não tem cache, busca da API (CORREÇÃO AQUI: fetchRealUserInfo)
+      const userInfo = await chatApi.fetchRealUserInfo(userId);
+      
+      if (userInfo) {
+        setUserName(userInfo.name);
+        if (userInfo.photo) {
+          setUserPhoto(userInfo.photo);
+        }
       }
       
     } catch (error) {

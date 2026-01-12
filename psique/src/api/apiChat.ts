@@ -74,7 +74,7 @@ export const chatApi = {
       
       const data = await response.json();
       
-      console.log('✅ Resposta da API de conversas:', data);
+      // console.log('✅ Resposta da API de conversas:', data);
       
       if (typeof data === 'object' && data !== null) {
         return { 
@@ -111,8 +111,6 @@ export const chatApi = {
       }
       
       const data = await response.json();
-      
-      console.log('✅ Resposta de mensagens:', data);
       
       let messagesArray: Message[] = [];
       
@@ -187,7 +185,6 @@ export const chatApi = {
       });
       
       const data = await response.json();
-      console.log('✅ Resposta ao enviar mensagem:', data);
       
       return { 
         success: response.ok, 
@@ -212,13 +209,8 @@ export const chatApi = {
         timestamp: Date.now()
       };
       
-      // Cache em memória
       userCache[userId] = userInfo;
-      
-      // Cache no AsyncStorage
       await AsyncStorage.setItem(`@user_cache_${userId}`, JSON.stringify(userInfo));
-      
-      console.log(`✅ Usuário ${userId} cacheado: ${name}`);
     } catch (error) {
       console.error('❌ Erro ao cachear usuário:', error);
     }
@@ -227,136 +219,72 @@ export const chatApi = {
   // 5. Buscar do cache
   getCachedUserInfo: async (userId: string): Promise<{name: string, photo?: string} | null> => {
     try {
-      // Primeiro verifica cache em memória
       if (userCache[userId]) {
-        const cacheAge = Date.now() - userCache[userId].timestamp;
-        const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 horas
-        
-        if (cacheAge < CACHE_DURATION) {
-          return userCache[userId];
-        }
+        return userCache[userId];
       }
       
-      // Se não tem em memória ou expirou, busca no AsyncStorage
       const cached = await AsyncStorage.getItem(`@user_cache_${userId}`);
       if (cached) {
         const parsed = JSON.parse(cached);
-        const cacheAge = Date.now() - parsed.timestamp;
-        const CACHE_DURATION = 24 * 60 * 60 * 1000;
-        
-        if (cacheAge < CACHE_DURATION) {
-          // Atualiza cache em memória
-          userCache[userId] = parsed;
-          return parsed;
-        }
+        userCache[userId] = parsed;
+        return parsed;
       }
       
       return null;
     } catch (error) {
-      console.error('❌ Erro ao buscar cache de usuário:', error);
       return null;
     }
   },
 
-  // 6. BUSCAR INFORMAÇÕES REAIS DO USUÁRIO
+  // 6. BUSCAR INFORMAÇÕES REAIS DO USUÁRIO (API Fallback adicionado)
   fetchRealUserInfo: async (userId: string): Promise<{name: string, photo?: string} | null> => {
     try {
-      console.log(`🔍 Buscando informações reais do usuário ${userId}...`);
-      
-      // 1. Primeiro tenta buscar do cache
+      // 1. Tenta cache
       const cached = await chatApi.getCachedUserInfo(userId);
-      if (cached) {
-        return cached;
-      }
+      if (cached) return cached;
       
-      // 2. Busca no AsyncStorage de perfis salvos
-      try {
-        const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
-        if (savedProfiles) {
-          const profiles = JSON.parse(savedProfiles);
-          if (profiles[userId]) {
-            const userInfo = {
-              name: profiles[userId].nome,
-              photo: profiles[userId].foto
-            };
-            // Cacheia para próxima vez
-            await chatApi.cacheUserInfo(userId, userInfo.name, userInfo.photo);
-            return userInfo;
-          }
+      // 2. Tenta AsyncStorage locais
+      const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
+      if (savedProfiles) {
+        const profiles = JSON.parse(savedProfiles);
+        if (profiles[userId]) {
+          await chatApi.cacheUserInfo(userId, profiles[userId].nome, profiles[userId].foto);
+          return { name: profiles[userId].nome, photo: profiles[userId].foto };
         }
-      } catch (error) {
-        console.error('Erro ao buscar perfis salvos:', error);
       }
-      
-      // 3. Busca no AsyncStorage de usuários conhecidos
+
+      // 3. === NOVO: TENTA BUSCAR NA API SE NÃO ACHAR NO CACHE ===
+      console.log(`🌐 Buscando user ${userId} na API externa...`);
       try {
-        const knownUsers = await AsyncStorage.getItem('@known_users');
-        if (knownUsers) {
-          const users = JSON.parse(knownUsers);
-          if (users[userId]) {
-            const userInfo = {
-              name: users[userId].name,
-              photo: users[userId].photo
-            };
-            // Cacheia para próxima vez
-            await chatApi.cacheUserInfo(userId, userInfo.name, userInfo.photo);
-            return userInfo;
-          }
+        const response = await fetch(`${API_BASE_URL}/clientes/${userId}`);
+        
+        if (response.ok) {
+            const data = await response.json();
+            const name = data.nome || data.name || data.user_name;
+            const photo = data.foto || data.photo || data.user_photo;
+            
+            if (name) {
+                console.log(`✅ User encontrado na API: ${name}`);
+                await chatApi.cacheUserInfo(userId, name, photo);
+                return { name, photo };
+            }
         }
-      } catch (error) {
-        console.error('Erro ao buscar usuários conhecidos:', error);
+      } catch (apiError) {
+        console.log('⚠️ Falha ao buscar user na API:', apiError);
       }
       
       return null;
     } catch (error) {
-      console.error('❌ Erro ao buscar informações do usuário:', error);
+      console.error('❌ Erro geral fetchRealUserInfo:', error);
       return null;
     }
   },
 
-  // 7. ADICIONAR USUÁRIO CONHECIDO (chamado quando salva perfil)
-  addKnownUser: async (userId: string, name: string, photo?: string): Promise<void> => {
-    try {
-      console.log(`➕ Adicionando usuário conhecido: ${name} (${userId})`);
-      
-      // 1. Cache imediato
-      await chatApi.cacheUserInfo(userId, name, photo);
-      
-      // 2. Adicionar à lista de usuários conhecidos
-      const knownUsersStr = await AsyncStorage.getItem('@known_users');
-      const knownUsers = knownUsersStr ? JSON.parse(knownUsersStr) : {};
-      
-      knownUsers[userId] = {
-        name,
-        photo,
-        timestamp: Date.now()
-      };
-      
-      await AsyncStorage.setItem('@known_users', JSON.stringify(knownUsers));
-      
-      // 3. Também salvar como perfil
-      const savedProfilesStr = await AsyncStorage.getItem('@saved_user_profiles');
-      const savedProfiles = savedProfilesStr ? JSON.parse(savedProfilesStr) : {};
-      
-      savedProfiles[userId] = {
-        nome: name,
-        foto: photo,
-        updated_at: new Date().toISOString()
-      };
-      
-      await AsyncStorage.setItem('@saved_user_profiles', JSON.stringify(savedProfiles));
-      
-      console.log(`✅ Usuário ${name} salvo para aparecer nos chats`);
-    } catch (error) {
-      console.error('❌ Erro ao adicionar usuário conhecido:', error);
-    }
-  },
-
-  // 8. Formatador de chat MELHORADO com busca de nomes reais
+  // 7. Formatador de chat (Atualizado)
   formatChatForPreview: async (chatData: ChatItem, currentUserId: string): Promise<ChatPreview> => {
     let otherUserId = '';
     
-    // Determina o ID do outro usuário
+    // Identifica o ID do outro usuário
     if (Array.isArray(chatData.participants)) {
       otherUserId = chatData.participants.find(p => p !== currentUserId) || '';
     } else if (chatData.participants?.user1 && chatData.participants?.user2) {
@@ -367,41 +295,22 @@ export const chatApi = {
     let otherUserName = chatData.other_user_name || '';
     let otherUserPhoto = chatData.other_user_photo;
     
-    // Verifica se o nome é genérico
+    // Verifica se o nome é genérico ou está vazio
     const isGenericName = !otherUserName || 
       otherUserName.includes('User') || 
       otherUserName.includes('Usuário') ||
       otherUserName === 'Host' ||
-      otherUserName === 'Organizador' ||
       otherUserName.match(/^Usuário \d+$/);
     
-    // Se o nome é genérico, BUSCA NOME REAL
+    // Se o nome for genérico e tivermos o ID, tenta buscar o nome real
     if (isGenericName && otherUserId) {
       const realUserInfo = await chatApi.fetchRealUserInfo(otherUserId);
       if (realUserInfo) {
         otherUserName = realUserInfo.name;
-        otherUserPhoto = realUserInfo.photo;
-        console.log(`✅ Nome real encontrado para ${otherUserId}: ${realUserInfo.name}`);
+        otherUserPhoto = realUserInfo.photo || otherUserPhoto;
       } else {
-        // Se não encontrou, tenta extrair do chat_id
-        if (chatData.chat_id.includes('_')) {
-          const ids = chatData.chat_id.split('_');
-          if (ids.length === 2) {
-            const targetId = ids[0] === currentUserId ? ids[1] : ids[0];
-            if (targetId !== otherUserId) {
-              const alternativeInfo = await chatApi.fetchRealUserInfo(targetId);
-              if (alternativeInfo) {
-                otherUserName = alternativeInfo.name;
-                otherUserPhoto = alternativeInfo.photo;
-              }
-            }
-          }
-        }
-        
-        // Último fallback
-        if (!otherUserName || otherUserName.includes('Usuário')) {
-          otherUserName = `Usuário ${otherUserId.slice(-4)}`;
-        }
+          // Último recurso: extrair do chat_id se possível, senão mantém genérico
+          if (!otherUserName) otherUserName = `Usuário ${otherUserId.slice(0, 4)}`;
       }
     }
     
@@ -417,58 +326,18 @@ export const chatApi = {
     };
   },
 
-  // 9. Criar ou buscar chat
-  getOrCreateChat: async (user1: string, user2: string) => {
+  // 8. Criar chat
+  createChat: async (participants: string[]) => {
     try {
       const response = await fetch(`${API_BASE_URL}/chats`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          user1,
-          user2
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participants })
       });
-      
       const data = await response.json();
-      console.log('Resposta getOrCreateChat:', data);
-      
-      return { 
-        success: response.ok, 
-        data: data,
-        status: response.status
-      };
+      return { success: response.ok, data };
     } catch (error: any) {
-      console.error('Erro getOrCreateChat:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Erro de rede' 
-      };
-    }
-  },
-
-  // 10. Migrar chats
-  migrateChats: async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/chats/migrate`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const data = await response.json();
-      return { 
-        success: response.ok, 
-        data: data 
-      };
-    } catch (error: any) {
-      console.error('Erro migrateChats:', error);
-      return { 
-        success: false, 
-        error: error.message 
-      };
+      return { success: false, error: error.message };
     }
   }
 };
