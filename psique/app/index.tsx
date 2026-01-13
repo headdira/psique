@@ -26,7 +26,6 @@ export default function LoginScreen() {
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   
-  // Pegamos o SIGNUP do contexto
   const { login, loginWithGoogle, signup, isAuthenticated, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -70,12 +69,10 @@ export default function LoginScreen() {
     }
   };
 
-  // === ABRE O NAVEGADOR PARA CADASTRO ===
   const handleSignup = async () => {
     try {
       const result = await signup();
       if (result.success) {
-         // Se voltou com sucesso, ou já logou (token) ou avisa pra logar
          if (!isAuthenticated) {
             Alert.alert('Conta criada', 'Agora faça login com seu email.');
          }

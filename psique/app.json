@@ -2,7 +2,6 @@
   "expo": {
     "name": "psique",
     "slug": "psique",
-    "scheme": "borababy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,33 +9,74 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F5F4F2"
+      "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.psique.app"
+      "bundleIdentifier": "com.gersonrodrigues.psique",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["whatsapp"],
+        "NSPhotoLibraryUsageDescription": "O app precisa acessar sua galeria para você escolher uma foto de perfil.",
+        "NSCameraUsageDescription": "O app precisa acessar sua câmera para você tirar uma foto de perfil.",
+        "NSLocationWhenInUseUsageDescription": "O app precisa da sua localização para mostrar dates próximos a você."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F5F4F2"
+        "backgroundColor": "#ffffff"
       },
-      "package": "com.psique.app"
+      "package": "com.gersonrodrigues.psique",
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "SUA_CHAVE_API_GOOGLE_MAPS_AQUI"
+        }
+      }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O app precisa acessar suas fotos para você escolher uma imagem de perfil.",
+          "cameraPermission": "O app precisa acessar sua câmera para você tirar uma foto."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permitir $(PRODUCT_NAME) usar sua localização."
+        }
+      ]
     ],
+    "scheme": "psique",
     "extra": {
-      "router": {
-        "origin": false
-      }
+      "eas": {
+        "projectId": "00730099-3288-47ae-a9ed-c5ef75db32ea"
+      },
+      "EXPO_PUBLIC_API_URL": "https://afrodite-v1.netlify.app/api",
+      "EXPO_PUBLIC_API_KEY": "bb_9f3a7c21e4b84d6fa92c1e8b5d0a4c7e"
+    },
+    "owner": "gersonrodrigues",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/00730099-3288-47ae-a9ed-c5ef75db32ea"
     }
   }
 }

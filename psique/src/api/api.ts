@@ -1,8 +1,8 @@
+// /src/api/api.ts - Mantenha compatibilidade
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// === CONFIGURAÇÃO DA API ===
-// Ajuste a URL base conforme o seu backend Eros
+// === 1. CONFIGURAÇÃO DA API (EROS/AFRODITE) ===
 const API_URL = 'https://borababy.netlify.app/api'; 
 
 const api = axios.create({
@@ -14,15 +14,15 @@ const api = axios.create({
   },
 });
 
-// === CHAVES DE STORAGE ===
+// === 2. CHAVES DE STORAGE (mantenha para compatibilidade) ===
 const STORAGE_KEYS = {
   USER_ID: '@psique:user_id',
   USER_DATA: '@psique:user_data',
   USER_EMAIL: '@psique:user_email',
-  SESSION_TOKEN: '@psique:session_token',
+  SESSION_TOKEN: '@psique:session_token', 
 } as const;
 
-// === INTERFACE DO USUÁRIO (Corrigida para incluir 'gosto') ===
+// === 3. INTERFACE DO USUÁRIO ===
 export interface UserData {
   id: string;
   email: string;
@@ -31,15 +31,11 @@ export interface UserData {
   type: string;
   created_at?: string;
   updated_at?: string;
-  
-  // Adicionado para parar o erro no HomeScreen
   gosto?: { [key: string]: string | number | boolean }; 
-  
   [key: string]: any;
 }
 
-// === INTERCEPTOR DE PROTEÇÃO ===
-// Injeta o Token em toda requisição automaticamente
+// === 4. INTERCEPTOR DE PROTEÇÃO ===
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
@@ -51,17 +47,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-api.interceptors.response.use(
-  response => response,
-  error => {
-    // Log de erro para debug
-    console.error(`[API Error] ${error.config?.url}:`, error.response?.status, error.message);
-    return Promise.reject(error);
-  }
-);
-
-// === GERENCIAMENTO DE SESSÃO ===
-
+// === 5. FUNÇÕES DE COMPATIBILIDADE (para não quebrar código existente) ===
 export const saveUserSession = async (userId: string, userData: UserData, email: string, token?: string) => {
   try {
     const pairs: [string, string][] = [
@@ -70,7 +56,6 @@ export const saveUserSession = async (userId: string, userData: UserData, email:
       [STORAGE_KEYS.USER_EMAIL, email],
     ];
 
-    // Salva o token se ele for fornecido (Auth Google / Cadastro)
     if (token) {
       pairs.push([STORAGE_KEYS.SESSION_TOKEN, token]);
     }
@@ -98,7 +83,6 @@ export const clearSession = async () => {
   }
 };
 
-// Getters
 export const getUserId = async () => AsyncStorage.getItem(STORAGE_KEYS.USER_ID);
 export const getUserData = async () => {
   const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
@@ -106,17 +90,14 @@ export const getUserData = async () => {
 };
 export const getUserEmail = async () => AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL);
 export const getSessionToken = async () => AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
-
 export const isLoggedIn = async (): Promise<boolean> => {
   const token = await getSessionToken();
   const userId = await getUserId();
   return !!(token && userId);
 };
 
-// === MÉTODOS DA API ===
-
+// === 6. MÉTODOS DA API ===
 export const clientesApi = {
-  // Busca dados do usuário pelo Token (Rota /me)
   getMe: async () => {
     try {
       const response = await api.get('/me'); 
@@ -126,13 +107,9 @@ export const clientesApi = {
     }
   },
 
-  // Busca cliente por email (Fallback para login sem token direto)
   getClienteByEmail: async (email: string) => {
     try {
-      // Ajuste a rota conforme seu backend real
       const response = await api.get(`/clientes?email=${email}`); 
-      
-      // Lógica para lidar se retornar array ou objeto único
       const data = Array.isArray(response.data) ? response.data[0] : response.data;
       
       if (data) {
@@ -144,12 +121,17 @@ export const clientesApi = {
     }
   },
 
-  // Atualizar dados do cliente
-  updateCliente: async (userId: string, data: Partial<UserData>) => {
+  createCliente: async (clienteData: any) => {
      try {
-       const response = await api.put(`/clientes/${userId}`, data);
-       return { success: true, data: response.data };
+       if (clienteData.id) {
+          const response = await api.put(`/clientes/${clienteData.id}`, clienteData);
+          return { success: true, data: response.data };
+       } else {
+          const response = await api.post('/register', clienteData);
+          return { success: true, data: response.data };
+       }
      } catch (error: any) {
+       console.error('Erro createCliente:', error);
        return { success: false, message: error.message };
      }
   }
