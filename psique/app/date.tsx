@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
-import { Colors, Typography, Spacing, BorderRadius } from '../src/theme/index';
+import { Colors, Spacing, BorderRadius } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { apiService } from '../src/api/apiDates';
 
@@ -64,6 +64,9 @@ const FILTER_CATEGORIES = [
 
 // Função para mapear dados da API para o formato do frontend
 const mapApiDateToCard = (apiDate: any, index: number) => {
+  // Proteção contra dados nulos (Evita Tela Branca)
+  if (!apiDate) return null;
+
   // Mapear tipo para imagem
   const imageMap: Record<string, string> = {
     parque: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
@@ -75,6 +78,9 @@ const mapApiDateToCard = (apiDate: any, index: number) => {
     cafe: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085',
     outro: 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e',
   };
+
+  const type = apiDate.type ? apiDate.type.toLowerCase() : 'outro';
+  const tone = apiDate.tone || 'casual';
 
   // Mapear tone para interesses
   const toneToInterests: Record<string, string[]> = {
@@ -94,42 +100,51 @@ const mapApiDateToCard = (apiDate: any, index: number) => {
     casual: 'casual',
   };
 
-  const date = new Date(apiDate.datetime);
-  const now = new Date();
-  const diffTime = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  let dateLabel = 'EM BREVE';
+  let timeLabel = '';
 
-  // Determinar label da data
-  let dateLabel = '';
-  if (diffDays === 0) {
-    dateLabel = 'HOJE';
-  } else if (diffDays === 1) {
-    dateLabel = 'AMANHÃ';
-  } else if (diffDays <= 7) {
-    const days = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
-    dateLabel = days[date.getDay()];
-  } else {
-    dateLabel = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase();
+  if (apiDate.datetime) {
+    try {
+        const date = new Date(apiDate.datetime);
+        const now = new Date();
+        const diffTime = date.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) {
+            dateLabel = 'HOJE';
+        } else if (diffDays === 1) {
+            dateLabel = 'AMANHÃ';
+        } else if (diffDays <= 7) {
+            const days = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+            dateLabel = days[date.getDay()];
+        } else {
+            dateLabel = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase();
+        }
+        timeLabel = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+        console.log("Erro ao formatar data", e);
+    }
   }
 
-  // Extrair cidade da localização (primeira parte antes da vírgula)
-  const locationParts = apiDate.location.split(',');
-  const city = locationParts.length > 1 ? locationParts[0].trim() : apiDate.location;
+  // Extrair cidade da localização (BLINDADO contra null)
+  const rawLocation = apiDate.location || 'Local a definir';
+  const locationParts = rawLocation.split(',');
+  const city = locationParts.length > 1 ? locationParts[0].trim() : rawLocation;
 
   return {
     id: apiDate.id || `temp-${index}`,
-    title: apiDate.description.split('.')[0] || apiDate.type,
-    description: apiDate.description,
-    image: imageMap[apiDate.type.toLowerCase()] || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
+    title: apiDate.description ? (apiDate.description.split('.')[0] || type) : 'Sem título',
+    description: apiDate.description || 'Sem descrição.',
+    image: imageMap[type] || imageMap['outro'],
     date: dateLabel,
-    time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    location: apiDate.location,
+    time: timeLabel,
+    location: rawLocation,
     city: city,
     distance: `${Math.floor(Math.random() * 10) + 1} km`,
     attendees: 0,
-    maxAttendees: apiDate.max_participants,
-    interests: toneToInterests[apiDate.tone] || ['chill', 'social'],
-    vibe: toneToVibe[apiDate.tone] || 'chill',
+    maxAttendees: apiDate.max_participants || 2,
+    interests: toneToInterests[tone] || ['chill', 'social'],
+    vibe: toneToVibe[tone] || 'chill',
     creator: {
       name: 'Host',
       age: 28,
@@ -181,12 +196,15 @@ export default function HomeScreen() {
       const response = await apiService.getDates();
       
       if (response.ok && response.dates) {
-        const mappedDates = response.dates.map((date, index) => 
-          mapApiDateToCard(date, index)
-        );
+        // CORREÇÃO: map((date: any, index: number)
+        const mappedDates = response.dates
+            .map((date: any, index: number) => mapApiDateToCard(date, index))
+            .filter((item: any) => item !== null); // Remove nulos caso ocorra erro no map
+
         setDates(mappedDates);
       } else {
-        Alert.alert('Erro', 'Não foi possível carregar os rolês');
+        // Não alerta erro se apenas não tiver dates, pode ser lista vazia
+        console.log('Nenhum date carregado ou erro:', response.error);
       }
     } catch (error) {
       console.error('Erro ao carregar dates:', error);
@@ -230,7 +248,12 @@ export default function HomeScreen() {
           text: 'Bora!', 
           onPress: async () => {
             try {
-              Alert.alert('Show!', 'Seu interesse foi registrado.');
+              const res = await apiService.submitToDate(dateId, user.id, "Tenho interesse!", user.nome);
+              if(res.ok) {
+                  Alert.alert('Show!', 'Seu interesse foi registrado.');
+              } else {
+                  Alert.alert('Ops', res.error || 'Erro ao registrar');
+              }
             } catch (error) {
               Alert.alert('Erro', 'Não foi possível registrar seu interesse');
             }
@@ -258,8 +281,13 @@ export default function HomeScreen() {
 
   const renderDateCard = (date: any) => (
     <TouchableOpacity 
+      key={date.id}
       style={styles.dateCard}
-      onPress={() => router.push(`/date/${date.id}`)}
+      onPress={() => {
+          // Se tiver uma tela de detalhes específica, use aqui
+          // Por enquanto, vamos reutilizar a HomeScreen de messages que tem o modal
+          router.push('/messages/HomeScreen'); 
+      }}
       activeOpacity={0.95}
     >
       {/* Header com data e local */}
@@ -284,7 +312,7 @@ export default function HomeScreen() {
       {/* Conteúdo */}
       <View style={styles.dateContent}>
         <Text style={styles.dateTitle}>{date.title}</Text>
-        <Text style={styles.dateDescription}>{date.description}</Text>
+        <Text style={styles.dateDescription} numberOfLines={2}>{date.description}</Text>
 
         {/* Interesses */}
         <View style={styles.interestsRow}>
@@ -303,7 +331,7 @@ export default function HomeScreen() {
               <Text style={styles.creatorInitial}>{date.creator.name.charAt(0)}</Text>
             </View>
             <View style={styles.creatorDetails}>
-              <Text style={styles.creatorName}>{date.creator.name}, {date.creator.age}</Text>
+              <Text style={styles.creatorName}>{date.creator.name}</Text>
               <Text style={styles.sharedInterests}>
                 {date.creator.sharedInterests} interesses em comum
               </Text>
@@ -391,60 +419,6 @@ export default function HomeScreen() {
               </View>
             </View>
           ))}
-
-          {/* Filtro de distância */}
-          <View style={styles.filterCategory}>
-            <Text style={styles.filterCategoryTitle}>Distância máxima</Text>
-            <View style={styles.distanceOptions}>
-              {['1 km', '5 km', '10 km', '20 km', '50 km'].map(distance => (
-                <TouchableOpacity
-                  key={distance}
-                  style={[
-                    styles.distanceOption,
-                    activeFilters.includes(`dist_${distance}`) && styles.distanceOptionActive
-                  ]}
-                  onPress={() => toggleFilter(`dist_${distance}`)}
-                >
-                  <Text style={[
-                    styles.distanceOptionText,
-                    activeFilters.includes(`dist_${distance}`) && styles.distanceOptionTextActive
-                  ]}>
-                    {distance}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Filtro de data */}
-          <View style={styles.filterCategory}>
-            <Text style={styles.filterCategoryTitle}>Quando</Text>
-            <View style={styles.dateOptions}>
-              {[
-                { id: 'today', label: 'Hoje' },
-                { id: 'tomorrow', label: 'Amanhã' },
-                { id: 'week', label: 'Esta semana' },
-                { id: 'weekend', label: 'Fim de semana' },
-                { id: 'any', label: 'Qualquer data' },
-              ].map(option => (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[
-                    styles.dateOption,
-                    activeFilters.includes(option.id) && styles.dateOptionActive
-                  ]}
-                  onPress={() => toggleFilter(option.id)}
-                >
-                  <Text style={[
-                    styles.dateOptionText,
-                    activeFilters.includes(option.id) && styles.dateOptionTextActive
-                  ]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
         </ScrollView>
 
         {/* Footer do modal */}
@@ -485,15 +459,6 @@ export default function HomeScreen() {
     );
   }
 
-  if (loadingDates && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green} />
-        <Text style={styles.loadingText}>Carregando rolês...</Text>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -529,40 +494,9 @@ export default function HomeScreen() {
       >
         <Ionicons name="search" size={18} color={Colors.gray} />
         <Text style={styles.searchPlaceholder}>
-          TESTE DE PROFILE
+          Buscar experiências...
         </Text>
       </TouchableOpacity>
-
-      {/* Filtros ativos */}
-      {activeFilters.length > 0 && (
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.activeFiltersContainer}
-          contentContainerStyle={styles.activeFiltersContent}
-        >
-          <TouchableOpacity 
-            style={styles.clearAllButton}
-            onPress={clearFilters}
-          >
-            <Ionicons name="close" size={14} color={Colors.gray} />
-            <Text style={styles.clearAllText}>Limpar</Text>
-          </TouchableOpacity>
-          {activeFilters.slice(0, 5).map(filter => (
-            <View key={filter} style={styles.activeFilter}>
-              <Text style={styles.activeFilterText}>{filter}</Text>
-              <TouchableOpacity onPress={() => toggleFilter(filter)}>
-                <Ionicons name="close" size={14} color={Colors.gray} />
-              </TouchableOpacity>
-            </View>
-          ))}
-          {activeFilters.length > 5 && (
-            <View style={styles.moreFilters}>
-              <Text style={styles.moreFiltersText}>+{activeFilters.length - 5}</Text>
-            </View>
-          )}
-        </ScrollView>
-      )}
 
       {/* Feed */}
       <ScrollView 
@@ -601,21 +535,12 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.quickAction}
-            onPress={() => router.push('/connections')}
+            onPress={() => router.push('/messages/HomeScreen')}
           >
             <View style={styles.quickActionIcon}>
-              <Ionicons name="heart" size={20} color={Colors.black} />
+              <Ionicons name="calendar" size={20} color={Colors.black} />
             </View>
-            <Text style={styles.quickActionText}>Conexões</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.quickAction}
-            onPress={() => router.push('/saved')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Ionicons name="bookmark" size={20} color={Colors.black} />
-            </View>
-            <Text style={styles.quickActionText}>Salvos</Text>
+            <Text style={styles.quickActionText}>Meus Rolês</Text>
           </TouchableOpacity>
         </View>
 
@@ -629,12 +554,10 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.datesList}>
-            {dates.length > 0 ? (
-              dates.map(date => (
-                <View key={date.id} style={styles.dateItem}>
-                  {renderDateCard(date)}
-                </View>
-              ))
+            {loadingDates && !refreshing ? (
+                 <ActivityIndicator size="large" color={Colors.green} style={{marginTop: 20}} />
+            ) : dates.length > 0 ? (
+              dates.map(date => renderDateCard(date))
             ) : (
               <View style={styles.emptyState}>
                 <Ionicons name="calendar-outline" size={60} color={Colors.gray} />
@@ -660,7 +583,7 @@ export default function HomeScreen() {
       <View style={styles.bottomNav}>
         <TouchableOpacity 
           style={styles.navItem}
-          onPress={() => router.push('/')}
+          onPress={() => {}}
         >
           <Ionicons name="home" size={22} color={Colors.black} />
           <Text style={styles.navLabelActive}>Início</Text>
@@ -700,8 +623,6 @@ export default function HomeScreen() {
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>
       </View>
-
-      {renderFilterModal()}
     </SafeAreaView>
   );
 }
@@ -950,6 +871,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.lightGray,
+    marginBottom: Spacing.lg
   },
   dateHeader: {
     flexDirection: 'row',
@@ -1139,7 +1061,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-
   navLabel: {
     fontSize: 11,
     color: Colors.gray,

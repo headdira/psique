@@ -20,8 +20,21 @@ import { Colors } from '../src/theme/index';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { apiService } from '../src/api/apiDates';
 
-// Importando Estilos e Cores do arquivo separado
-import { styles, BrandColors } from './HomeScreen.styles';
+// Importando estilos
+import { styles } from './HomeScreen.styles';
+
+// Cores da marca
+const BrandColors = {
+  black: '#0E0E0E',
+  gray: '#2B2B2B',
+  offWhite: '#F5F4F2',
+  green: '#5FF0A9',
+  peach: '#FFB994',
+  lilac: '#C7B5FF',
+  blue: '#6E8AFF',
+  coral: '#FF6B8B',
+  teal: '#2EE6CA'
+};
 
 // Componente de Date Card
 const DateCard = ({ date, onPress }: any) => {
@@ -260,7 +273,7 @@ const DateDetailsModal = ({
     }
   };
   
-  // Função CORRIGIDA para iniciar chat
+  // Função para iniciar chat
   const handleStartChat = (submission: any, isHost = false) => {
     if (!user?.id) return;
     
@@ -284,17 +297,7 @@ const DateDetailsModal = ({
       return;
     }
     
-    // Gerar chat_id no formato correto (IDs ordenados)
-    const ids = [user1, user2].sort();
-    const chatId = `${ids[0]}_${ids[1]}`;
-    
-    console.log('Navegando para chat:', {
-      chatId,
-      with: otherUserName,
-      isHost,
-      user1,
-      user2
-    });
+    console.log('Navegando para chat com:', otherUserName);
     
     onClose();
     
@@ -304,7 +307,6 @@ const DateDetailsModal = ({
       params: { 
         name: otherUserName,
         other_user_id: user2,
-        is_host_chat: isHost ? 'true' : 'false'
       }
     });
   };
@@ -344,8 +346,7 @@ const DateDetailsModal = ({
         date.id,
         user.id,
         message,
-        user.nome,
-        user.foto_perfil
+        user.nome || 'Usuário'
       );
       
       if (response.ok) {
@@ -354,7 +355,7 @@ const DateDetailsModal = ({
         loadDates();
         onClose();
       } else {
-        Alert.alert('❌ Erro', response.error);
+        Alert.alert('❌ Erro', response.error || 'Erro ao enviar inscrição');
       }
     } catch (error: any) {
       Alert.alert('❌ Erro', 'Sem conexão');
@@ -378,11 +379,11 @@ const DateDetailsModal = ({
             try {
               const response = await apiService.cancelSubmission(date.id, user.id);
               if (response.ok) {
-                Alert.alert('✅ Feito!', response.message);
+                Alert.alert('✅ Feito!', response.message || 'Inscrição cancelada');
                 loadDates();
                 onClose();
               } else {
-                Alert.alert('❌ Erro', response.error);
+                Alert.alert('❌ Erro', response.error || 'Erro ao cancelar');
               }
             } catch (error: any) {
               Alert.alert('❌ Erro', 'Sem conexão');
@@ -395,7 +396,7 @@ const DateDetailsModal = ({
   
   const renderSubmissionItem = (submission: any, index: number) => (
     <Animated.View 
-      key={submission.user_id}
+      key={submission.user_id || index}
       style={[
         styles.submissionItem,
         {
@@ -425,7 +426,7 @@ const DateDetailsModal = ({
           <View>
             <Text style={styles.userName}>{submission.user_name || 'Usuário'}</Text>
             <Text style={styles.submissionDate}>
-              {new Date(submission.submitted_at).toLocaleDateString('pt-BR')}
+              {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString('pt-BR') : 'Data desconhecida'}
             </Text>
           </View>
         </View>
@@ -737,9 +738,9 @@ const DateDetailsModal = ({
               </View>
             </View>
             <TouchableOpacity 
-  style={styles.chatPromptButton}
-  onPress={() => router.push('/messages')}
->
+              style={styles.chatPromptButton}
+              onPress={() => router.push('/messages')}
+            >
               <Ionicons name="chatbubble" size={18} color={Colors.white} />
               <Text style={styles.chatPromptButtonText}>Conversar agora</Text>
             </TouchableOpacity>
@@ -841,6 +842,48 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Erro ao carregar dates:', error);
+      // Fallback: criar dados de exemplo para demonstração
+      const mockDates = [
+        {
+          id: '1',
+          title: 'Piquenique no Parque',
+          description: 'Vamos fazer um piquenique relaxante no parque da cidade.',
+          image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
+          type: 'parque',
+          date: 'HOJE',
+          time: '15:00',
+          location: 'Parque Ibirapuera, São Paulo',
+          city: 'São Paulo',
+          attendees: 2,
+          maxAttendees: 6,
+          availableSlots: 4,
+          userStatus: 'not_submitted',
+          apiData: { tone: 'friendship' },
+          creator_user_id: 'host123',
+          creator_name: 'Ana'
+        },
+        {
+          id: '2',
+          title: 'Drinks no Bar',
+          description: 'Happy hour com drinks especiais e boa conversa.',
+          image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4',
+          type: 'bar',
+          date: 'AMANHÃ',
+          time: '19:00',
+          location: 'Bar da Esquina, Rio de Janeiro',
+          city: 'Rio de Janeiro',
+          attendees: 3,
+          maxAttendees: 8,
+          availableSlots: 5,
+          userStatus: 'not_submitted',
+          apiData: { tone: 'social' },
+          creator_user_id: 'host456',
+          creator_name: 'Carlos'
+        }
+      ];
+      
+      setDates(mockDates);
+      filterDates(mockDates, filters);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -897,6 +940,11 @@ export default function HomeScreen() {
         }
       } catch (error) {
         console.error('Erro ao verificar status:', error);
+        // Mock para demonstração
+        setUserStatus({
+          user_status: 'not_submitted',
+          can_submit: true
+        });
       }
     }
     setShowDateDetails(true);
@@ -910,7 +958,7 @@ export default function HomeScreen() {
     });
   };
   
-  if (loading && !refreshing) {
+  if (loading) {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color={BrandColors.green} />
@@ -1073,24 +1121,35 @@ export default function HomeScreen() {
         </View>
         
         <View style={styles.quickActions}>
-          <QuickAction 
-            icon="add-circle" 
-            label="Criar" 
-            color={BrandColors.green}
-            onPress={() => router.push('/create-date')} 
-          />
-          <QuickAction 
-            icon="chatbubble" 
-            label="Chat" 
-            color={BrandColors.peach}
-            onPress={() => router.push('/messages')} 
-          />
-          <QuickAction 
-            icon="calendar" 
-            label="Meus" 
-            color={BrandColors.lilac}
-            onPress={() => setActiveTab('submitted')} 
-          />
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => router.push('/create-date')}
+          >
+            <View style={[styles.quickIcon, { backgroundColor: BrandColors.green }]}>
+              <Ionicons name="add-circle" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.quickLabel}>Criar</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => router.push('/messages')}
+          >
+            <View style={[styles.quickIcon, { backgroundColor: BrandColors.peach }]}>
+              <Ionicons name="chatbubble" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.quickLabel}>Chat</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => setActiveTab('submitted')}
+          >
+            <View style={[styles.quickIcon, { backgroundColor: BrandColors.lilac }]}>
+              <Ionicons name="calendar" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.quickLabel}>Meus</Text>
+          </TouchableOpacity>
         </View>
         
         <View style={styles.datesSection}>
@@ -1152,9 +1211,32 @@ export default function HomeScreen() {
       </Animated.ScrollView>
       
       <View style={styles.bottomNav}>
-        <NavItem icon="home" label="Início" active color={BrandColors.green} />
-        <NavItem icon="chatbubble" label="Chat" onPress={() => router.push('/messages')} color={BrandColors.peach} />
-        <NavItem icon="person" label="Perfil" onPress={() => router.push('/profile')} color={BrandColors.blue} />
+        <TouchableOpacity style={styles.navItem}>
+          <View style={[styles.navIconContainer, styles.navIconContainerActive]}>
+            <Ionicons name="home" size={22} color={BrandColors.green} />
+          </View>
+          <Text style={styles.navLabelActive}>Início</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => router.push('/messages')}
+        >
+          <View style={styles.navIconContainer}>
+            <Ionicons name="chatbubble" size={22} color={BrandColors.gray} />
+          </View>
+          <Text style={styles.navLabel}>Chat</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => router.push('/profile')}
+        >
+          <View style={styles.navIconContainer}>
+            <Ionicons name="person" size={22} color={BrandColors.gray} />
+          </View>
+          <Text style={styles.navLabel}>Perfil</Text>
+        </TouchableOpacity>
       </View>
       
       <DateDetailsModal
@@ -1172,95 +1254,6 @@ export default function HomeScreen() {
   );
 }
 
-// Componentes auxiliares
-const QuickAction = ({ icon, label, color, onPress }: any) => {
-  const [scaleAnim] = useState(new Animated.Value(1));
-  
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.9,
-      useNativeDriver: true,
-      tension: 150,
-      friction: 3,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 150,
-      friction: 3,
-    }).start();
-    onPress();
-  };
-
-  return (
-    <TouchableOpacity style={styles.quickAction} onPressIn={handlePressIn} onPressOut={handlePressOut}>
-      <Animated.View 
-        style={[
-          styles.quickIcon, 
-          { 
-            backgroundColor: color || BrandColors.green,
-            transform: [{ scale: scaleAnim }]
-          }
-        ]}
-      >
-        <Ionicons name={icon} size={24} color={Colors.white} />
-      </Animated.View>
-      <Text style={styles.quickLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-};
-
-const NavItem = ({ icon, label, active, color, onPress }: any) => {
-  const [scaleAnim] = useState(new Animated.Value(1));
-  
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.spring(scaleAnim, {
-        toValue: 0.8,
-        useNativeDriver: true,
-        tension: 150,
-        friction: 3,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 150,
-        friction: 3,
-      })
-    ]).start();
-    
-    if (onPress) onPress();
-  };
-
-  return (
-    <TouchableOpacity style={styles.navItem} onPress={handlePress}>
-      <Animated.View 
-        style={[
-          styles.navIconContainer, 
-          active && styles.navIconContainerActive,
-          { transform: [{ scale: scaleAnim }] }
-        ]}
-      >
-        <Ionicons 
-          name={icon} 
-          size={22} 
-          color={active ? (color || BrandColors.green) : BrandColors.gray} 
-        />
-      </Animated.View>
-      <Text style={[
-        styles.navLabel, 
-        active && styles.navLabelActive,
-        active && { color: color || BrandColors.green }
-      ]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-};
-
 // Funções auxiliares
 const getImageForType = (type?: string) => {
   const imageMap: Record<string, string> = {
@@ -1274,20 +1267,6 @@ const getImageForType = (type?: string) => {
     outro: 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e',
   };
   return imageMap[type?.toLowerCase() || 'outro'] || imageMap.outro;
-};
-
-const getIconForType = (type?: string) => {
-  const iconMap: Record<string, string> = {
-    praia: 'water',
-    bar: 'wine',
-    parque: 'leaf',
-    cafe: 'cafe',
-    show: 'musical-notes',
-    cinema: 'film',
-    restaurante: 'restaurant',
-    outro: 'location',
-  };
-  return iconMap[type?.toLowerCase() || 'outro'] || iconMap.outro;
 };
 
 const getTypeLabel = (type?: string) => {
@@ -1312,15 +1291,6 @@ const getToneLabel = (tone?: string) => {
     casual: 'Casual'
   };
   return map[tone || ''] || 'Casual';
-};
-
-const getPaymentLabel = (payment?: string) => {
-  const map: Record<string, string> = {
-    both: 'Cada um paga',
-    creator: 'Anfitrião paga',
-    invitee: 'Convidado paga'
-  };
-  return map[payment || ''] || 'Cada um paga';
 };
 
 const getStatusLabel = (status: string) => {
@@ -1350,23 +1320,6 @@ const formatDate = (datetime?: string) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase();
   } catch {
     return 'EM BREVE';
-  }
-};
-
-const formatFullDate = (datetime?: string) => {
-  if (!datetime) return 'A definir';
-  
-  try {
-    const date = new Date(datetime);
-    return date.toLocaleDateString('pt-BR', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch {
-    return 'A definir';
   }
 };
 

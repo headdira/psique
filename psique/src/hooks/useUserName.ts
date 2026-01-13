@@ -12,27 +12,51 @@ export const useUserName = (userId?: string) => {
     
     setLoading(true);
     try {
+      console.log(`🔍 Buscando informações do usuário: ${userId}`);
+      
       // 1. Tenta buscar do cache primeiro
       const cached = await chatApi.getCachedUserInfo(userId);
-      if (cached) {
+      if (cached && cached.name && !cached.name.includes('User')) {
+        console.log(`✅ Nome encontrado no cache: ${cached.name}`);
         setUserName(cached.name);
         setUserPhoto(cached.photo);
-        setLoading(false); // Importante parar o loading aqui se achou no cache
+        setLoading(false);
         return;
       }
       
-      // 2. Se não tem cache, busca da API (CORREÇÃO AQUI: fetchRealUserInfo)
-      const userInfo = await chatApi.fetchRealUserInfo(userId);
+      // 2. Tenta buscar informações reais da API
+      const realInfo = await chatApi.fetchRealUserInfo(userId);
       
-      if (userInfo) {
-        setUserName(userInfo.name);
-        if (userInfo.photo) {
-          setUserPhoto(userInfo.photo);
+      if (realInfo && realInfo.name && !realInfo.name.includes('User')) {
+        console.log(`✅ Nome encontrado na API: ${realInfo.name}`);
+        setUserName(realInfo.name);
+        if (realInfo.photo) {
+          setUserPhoto(realInfo.photo);
+        }
+        
+        // Salva no cache para futuras buscas
+        await chatApi.cacheUserInfo(userId, realInfo.name, realInfo.photo);
+      } else {
+        // Se não encontrou, verifica se tem nome salvo localmente
+        const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
+        if (savedProfiles) {
+          const profiles = JSON.parse(savedProfiles);
+          if (profiles[userId]?.nome && !profiles[userId].nome.includes('User')) {
+            setUserName(profiles[userId].nome);
+            setUserPhoto(profiles[userId].foto);
+            await chatApi.cacheUserInfo(userId, profiles[userId].nome, profiles[userId].foto);
+          } else {
+            // Último recurso: mostrar ID formatado
+            setUserName(`Usuário ${userId.slice(-4)}`);
+          }
+        } else {
+          // Último recurso: mostrar ID formatado
+          setUserName(`Usuário ${userId.slice(-4)}`);
         }
       }
       
     } catch (error) {
-      console.error('Erro ao carregar informações do usuário:', error);
+      console.error('❌ Erro ao carregar informações do usuário:', error);
       setUserName(`Usuário ${userId.slice(-4)}`);
     } finally {
       setLoading(false);

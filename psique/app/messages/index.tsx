@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -7,7 +7,6 @@ import {
   Image, 
   ActivityIndicator, 
   RefreshControl,
-  StyleSheet,
   Platform,
   StatusBar
 } from 'react-native';
@@ -15,16 +14,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext'; 
 import { chatApi } from '../../src/api/apiChat';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Cores do projeto
-const BrandColors = {
-  green: '#5FF0A9',
-  offWhite: '#F5F4F2',
-  white: '#FFFFFF',
-  black: '#0E0E0E',
-  gray: '#888888',
-  lightGray: '#E5E5E5',
-};
+// Importar estilos separados
+import { styles, BrandColors } from './index.styles';
 
 interface ChatItemType {
   id: string;
@@ -37,11 +30,126 @@ interface ChatItemType {
   chat_data?: any;
 }
 
+// Interface para usuário da API
+interface ApiUser {
+  id?: string;
+  user_id?: string;
+  _id?: string;
+  nome?: string;
+  name?: string;
+  user_name?: string;
+  foto?: string;
+  photo?: string;
+  user_photo?: string;
+  picture?: string;
+  email?: string;
+}
+
 export default function MessagesListScreen() {
-  const { user } = useAuth();
+  const { user, fetchUserInfo } = useAuth();
   const [chats, setChats] = useState<ChatItemType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [updatingNames, setUpdatingNames] = useState(false);
+
+  // Função para buscar nomes dos usuários da API
+  const fetchUserNames = async (chatItems: ChatItemType[]) => {
+    if (!chatItems.length) return chatItems;
+    
+    setUpdatingNames(true);
+    
+    const updatedChats = [...chatItems];
+    const userIds = chatItems.map(chat => chat.other_user_id).filter(id => id);
+    
+    console.log(`🔄 Buscando nomes para ${userIds.length} usuários...`);
+    
+    for (let i = 0; i < updatedChats.length; i++) {
+      const chat = updatedChats[i];
+      const otherUserId = chat.other_user_id;
+      
+      if (!otherUserId) continue;
+      
+      // Verifica se o nome atual é genérico
+      const currentName = chat.user_name;
+      const isGenericName = !currentName || 
+        currentName.includes('User') || 
+        currentName.includes('Usuário') ||
+        currentName === 'Host' ||
+        currentName.match(/^Usuário \d+$/);
+      
+      if (isGenericName) {
+        try {
+          // Tenta buscar do AsyncStorage primeiro
+          const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
+          if (savedProfiles) {
+            const profiles = JSON.parse(savedProfiles);
+            if (profiles[otherUserId]?.nome && !profiles[otherUserId].nome.includes('User')) {
+              console.log(`✅ Nome encontrado no storage: ${profiles[otherUserId].nome}`);
+              updatedChats[i] = {
+                ...chat,
+                user_name: profiles[otherUserId].nome,
+                user_photo: profiles[otherUserId].foto || chat.user_photo
+              };
+              continue;
+            }
+          }
+          
+          // Se não encontrou, usa a função do AuthContext para buscar
+          if (fetchUserInfo) {
+            const realName = await fetchUserInfo(otherUserId);
+            if (realName) {
+              console.log(`✅ Nome encontrado via API: ${realName}`);
+              updatedChats[i] = {
+                ...chat,
+                user_name: realName
+              };
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Erro ao buscar nome para ${otherUserId}:`, error);
+        }
+      }
+    }
+    
+    setUpdatingNames(false);
+    return updatedChats;
+  };
+
+  // Função para buscar TODOS os perfis da API (backup)
+  const fetchAllUserProfiles = async () => {
+    try {
+      console.log('🔍 Buscando todos os perfis da API...');
+      
+      // Tenta buscar da sua API de clientes
+      const response = await fetch('https://borababy.netlify.app/api/clientes');
+      if (response.ok) {
+        const allUsers = await response.json();
+        
+        if (Array.isArray(allUsers)) {
+          const profiles: Record<string, any> = {};
+          
+          (allUsers as ApiUser[]).forEach((userItem: ApiUser) => {
+            const userId = userItem.id || userItem.user_id || userItem._id;
+            const userName = userItem.nome || userItem.name || userItem.user_name;
+            
+            if (userId && userName && userName !== 'Usuário') {
+              profiles[userId] = {
+                nome: userName,
+                foto: userItem.foto || userItem.photo || userItem.user_photo || userItem.picture || '',
+                email: userItem.email || '',
+                updated_at: new Date().toISOString()
+              };
+            }
+          });
+          
+          await AsyncStorage.setItem('@saved_user_profiles', JSON.stringify(profiles));
+          console.log(`✅ ${Object.keys(profiles).length} perfis salvos localmente`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar todos os perfis:', error);
+    }
+  };
 
   const loadChats = async () => {
     if (!user?.id) {
@@ -54,15 +162,24 @@ export default function MessagesListScreen() {
     
     try {
       const result = await chatApi.getConversations(user.id);
-      console.log('Resultado da API:', result);
+      console.log('Resultado da API de conversas:', result);
       
       if (result.success && result.data) {
+        // Primeiro, tenta buscar todos os perfis (só na primeira vez ou quando não tem muitos)
+        const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
+        if (!savedProfiles || Object.keys(JSON.parse(savedProfiles || '{}')).length < 10) {
+          await fetchAllUserProfiles();
+        }
+        
         // Converte objeto para array usando a função de formatação ASSÍNCRONA
-        const chatsPromises = Object.values(result.data).map(async (chatData) => {
-          return await chatApi.formatChatForPreview(chatData, user.id);
+        const chatsPromises = Object.values(result.data).map(async (chatData: any) => {
+          return await chatApi.formatChatForPreview(chatData, user.id!);
         });
         
-        const chatsArray = await Promise.all(chatsPromises);
+        let chatsArray = await Promise.all(chatsPromises);
+        
+        // Agora busca nomes reais para os chats
+        chatsArray = await fetchUserNames(chatsArray);
         
         // Ordena por data
         chatsArray.sort((a, b) => {
@@ -71,7 +188,7 @@ export default function MessagesListScreen() {
           return timeB - timeA;
         });
         
-        console.log('Chats formatados:', chatsArray);
+        console.log('Chats formatados com nomes reais:', chatsArray);
         setChats(chatsArray);
       } else {
         console.log('Nenhum chat encontrado ou erro na API');
@@ -101,9 +218,11 @@ export default function MessagesListScreen() {
     }, [user?.id])
   );
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadChats();
+    // Força buscar todos os perfis novamente
+    await fetchAllUserProfiles();
+    await loadChats();
   };
 
   const formatMessageTime = (timestamp?: string) => {
@@ -135,59 +254,99 @@ export default function MessagesListScreen() {
     router.replace('/HomeScreen');
   };
 
-  const renderItem = ({ item }: { item: ChatItemType }) => (
-    <TouchableOpacity 
-      style={styles.chatItem} 
-      onPress={() => {
-        router.push({
-          pathname: `/messages/${item.id}`,
-          params: { 
-            name: item.user_name,
-            other_user_id: item.other_user_id,
-            chat_data: JSON.stringify(item.chat_data || {})
-          }
-        });
-      }}
-    >
-      {/* Avatar */}
-      <View style={styles.avatarContainer}>
-        {item.user_photo ? (
-          <Image source={{ uri: item.user_photo }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>
-              {item.user_name.charAt(0).toUpperCase()}
+  // Função para forçar atualização de nomes
+  const forceUpdateNames = async () => {
+    setUpdatingNames(true);
+    const updatedChats = await fetchUserNames(chats);
+    setChats(updatedChats);
+    setUpdatingNames(false);
+  };
+
+  const renderItem = ({ item }: { item: ChatItemType }) => {
+    // Verifica se o nome ainda é genérico
+    const isGenericName = item.user_name && (
+      item.user_name.includes('User') || 
+      item.user_name.includes('Usuário') ||
+      item.user_name === 'Host' ||
+      item.user_name.match(/^Usuário \d+$/)
+    );
+    
+    const displayName = isGenericName && item.other_user_id 
+      ? `Usuário ${item.other_user_id.slice(-4)}`
+      : item.user_name;
+
+    return (
+      <TouchableOpacity 
+        style={styles.chatItem} 
+        onPress={() => {
+          router.push({
+            pathname: `/messages/${item.id}`,
+            params: { 
+              name: displayName,
+              other_user_id: item.other_user_id,
+              chat_data: JSON.stringify(item.chat_data || {})
+            }
+          });
+        }}
+        onLongPress={forceUpdateNames}
+      >
+        {/* Avatar */}
+        <View style={styles.avatarContainer}>
+          {item.user_photo ? (
+            <Image source={{ uri: item.user_photo }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          
+          {/* Indicador de nome genérico */}
+          {isGenericName && (
+            <View style={styles.genericIndicator}>
+              <Ionicons name="refresh" size={10} color={BrandColors.white} />
+            </View>
+          )}
+        </View>
+
+        {/* Informações do chat */}
+        <View style={styles.chatInfo}>
+          <View style={styles.chatHeader}>
+            <View style={styles.nameContainer}>
+              <Text style={styles.userName} numberOfLines={1}>
+                {displayName}
+              </Text>
+              {isGenericName && (
+                <TouchableOpacity 
+                  onPress={() => fetchUserInfo && fetchUserInfo(item.other_user_id).then(loadChats)}
+                  style={styles.refreshNameButton}
+                >
+                  <Ionicons name="refresh" size={14} color={BrandColors.green} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.time}>
+              {formatMessageTime(item.last_message_time)}
+            </Text>
+          </View>
+          
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {item.last_message || 'Nova conversa'}
+          </Text>
+        </View>
+
+        {/* Badge de mensagens não lidas */}
+        {item.unread_count && item.unread_count > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {item.unread_count > 99 ? '99+' : item.unread_count}
             </Text>
           </View>
         )}
-      </View>
-
-      {/* Informações do chat */}
-      <View style={styles.chatInfo}>
-        <View style={styles.chatHeader}>
-          <Text style={styles.userName} numberOfLines={1}>
-            {item.user_name}
-          </Text>
-          <Text style={styles.time}>
-            {formatMessageTime(item.last_message_time)}
-          </Text>
-        </View>
-        
-        <Text style={styles.lastMessage} numberOfLines={1}>
-          {item.last_message || 'Nova conversa'}
-        </Text>
-      </View>
-
-      {/* Badge de mensagens não lidas */}
-      {item.unread_count && item.unread_count > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>
-            {item.unread_count > 99 ? '99+' : item.unread_count}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -215,17 +374,34 @@ export default function MessagesListScreen() {
           </View>
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>Conversas</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Conversas</Text>
+          {updatingNames && (
+            <ActivityIndicator size="small" color={BrandColors.green} style={styles.updatingIndicator} />
+          )}
+        </View>
         
-        <TouchableOpacity 
-          onPress={loadChats} 
-          style={styles.refreshButtonContainer}
-          activeOpacity={0.7}
-        >
-          <View style={styles.refreshButtonContent}>
-            <Ionicons name="refresh" size={24} color="#5FF0A9" />
-          </View>
-        </TouchableOpacity>
+        <View style={styles.headerRightButtons}>
+          <TouchableOpacity 
+            onPress={forceUpdateNames} 
+            style={styles.updateButtonContainer}
+            activeOpacity={0.7}
+          >
+            <View style={styles.updateButtonContent}>
+              <Ionicons name="sync" size={20} color={BrandColors.green} />
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            onPress={onRefresh} 
+            style={styles.refreshButtonContainer}
+            activeOpacity={0.7}
+          >
+            <View style={styles.refreshButtonContent}>
+              <Ionicons name="refresh" size={24} color={BrandColors.green} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Lista de chats */}
@@ -235,7 +411,12 @@ export default function MessagesListScreen() {
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            colors={[BrandColors.green]}
+            tintColor={BrandColors.green}
+          />
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -246,164 +427,15 @@ export default function MessagesListScreen() {
             </Text>
           </View>
         }
+        ListHeaderComponent={
+          updatingNames ? (
+            <View style={styles.updatingNamesHeader}>
+              <ActivityIndicator size="small" color={BrandColors.green} />
+              <Text style={styles.updatingNamesText}>Atualizando nomes...</Text>
+            </View>
+          ) : null
+        }
       />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BrandColors.offWhite,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: BrandColors.offWhite,
-    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: BrandColors.gray,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
-    paddingBottom: 16,
-    backgroundColor: BrandColors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: BrandColors.lightGray,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  backButtonContainer: {
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingVertical: 16,
-    minWidth: 60,
-    alignItems: 'flex-start',
-  },
-  backButtonContent: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: BrandColors.black,
-    flex: 1,
-    textAlign: 'center',
-  },
-  refreshButtonContainer: {
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingVertical: 16,
-    minWidth: 60,
-    alignItems: 'flex-end',
-  },
-  refreshButtonContent: {
-    padding: 4,
-  },
-  listContent: {
-    padding: 16,
-    paddingTop: 8,
-  },
-  chatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: BrandColors.white,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  avatarContainer: {
-    marginRight: 12,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: BrandColors.green,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: BrandColors.white,
-  },
-  chatInfo: {
-    flex: 1,
-  },
-  chatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: BrandColors.black,
-    flex: 1,
-  },
-  time: {
-    fontSize: 12,
-    color: BrandColors.gray,
-    marginLeft: 8,
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: BrandColors.gray,
-  },
-  badge: {
-    backgroundColor: BrandColors.green,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: BrandColors.white,
-    paddingHorizontal: 6,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 100,
-    paddingHorizontal: 40,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: BrandColors.black,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: BrandColors.gray,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});

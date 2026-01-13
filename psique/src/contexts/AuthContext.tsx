@@ -33,6 +33,11 @@ export interface AuthContextData {
   checkAuth: () => Promise<void>;
   updateUser: (userData: Partial<UserData>) => Promise<void>;
   refreshUserData: () => Promise<void>;
+  
+  // NOVAS FUNÇÕES ADICIONADAS
+  fetchUserInfo: (userId: string) => Promise<string | null>;
+  fetchAllUserProfiles: () => Promise<boolean>;
+  getUserProfileFromLocal: (userId: string) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -71,6 +76,198 @@ if (!global.atob) {
   };
 }
 
+// Função para salvar perfil localmente (para referência futura)
+const saveUserProfileLocally = async (userId: string, userData: any) => {
+  try {
+    const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
+    const profiles = savedProfiles ? JSON.parse(savedProfiles) : {};
+    
+    profiles[userId] = {
+      nome: userData.nome || userData.name || 'Usuário',
+      foto: userData.foto || userData.photo || userData.picture,
+      email: userData.email || '',
+      updated_at: new Date().toISOString()
+    };
+    
+    await AsyncStorage.setItem('@saved_user_profiles', JSON.stringify(profiles));
+    console.log(`✅ Perfil salvo localmente: ${profiles[userId].nome} (ID: ${userId})`);
+    
+    // Também salva no cache da API de chat
+    await chatApi.cacheUserInfo(userId, profiles[userId].nome, profiles[userId].foto);
+    
+    return profiles[userId].nome;
+  } catch (error) {
+    console.error('Erro ao salvar perfil localmente:', error);
+    return null;
+  }
+};
+
+// Função para buscar perfil localmente
+const getUserProfileFromLocal = async (userId: string): Promise<any> => {
+  try {
+    const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
+    if (savedProfiles) {
+      const profiles = JSON.parse(savedProfiles);
+      return profiles[userId] || null;
+    }
+    return null;
+  } catch (error) {
+    console.error('Erro ao buscar perfil local:', error);
+    return null;
+  }
+};
+
+// Função para buscar TODOS os perfis da API
+const fetchAllUserProfilesFromAPI = async (): Promise<boolean> => {
+  try {
+    console.log('🔄 Buscando TODOS os perfis da API...');
+    
+    // URL da sua API
+    const API_URL = 'https://borababy.netlify.app/api';
+    
+    // Tenta diferentes endpoints
+    const endpoints = [
+      `${API_URL}/clientes`,
+      `${API_URL}/users`,
+      `${API_URL}/usuarios`
+    ];
+    
+    let allUsers: any[] = [];
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`Tentando endpoint: ${endpoint}`);
+        const response = await fetch(endpoint);
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            allUsers = [...allUsers, ...data];
+            console.log(`✅ Encontrou ${data.length} usuários em ${endpoint}`);
+            break;
+          } else if (typeof data === 'object' && data !== null) {
+            // Se a API retornar um objeto com um array dentro
+            if (data.users && Array.isArray(data.users)) {
+              allUsers = [...allUsers, ...data.users];
+              console.log(`✅ Encontrou ${data.users.length} usuários em ${endpoint}`);
+              break;
+            } else if (data.clientes && Array.isArray(data.clientes)) {
+              allUsers = [...allUsers, ...data.clientes];
+              console.log(`✅ Encontrou ${data.clientes.length} usuários em ${endpoint}`);
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`❌ Falha no endpoint ${endpoint}:`, error);
+      }
+    }
+    
+    if (allUsers.length === 0) {
+      console.log('⚠️ Não encontrou usuários em nenhum endpoint, tentando endpoint único...');
+      // Tenta buscar usuários individualmente (mais lento)
+      return false;
+    }
+    
+    // Processa e salva os perfis
+    const profiles: Record<string, any> = {};
+    let savedCount = 0;
+    
+    for (const user of allUsers) {
+      const userId = user.id || user.user_id || user._id;
+      const userName = user.nome || user.name || user.user_name;
+      
+      if (userId && userName && userName !== 'Usuário' && !userName.includes('User')) {
+        profiles[userId] = {
+          nome: userName,
+          foto: user.foto || user.photo || user.user_photo || user.picture,
+          email: user.email || '',
+          updated_at: new Date().toISOString()
+        };
+        
+        savedCount++;
+        
+        // Salva no cache da API de chat
+        chatApi.cacheUserInfo(userId, userName, user.foto || user.photo || user.user_photo)
+          .catch(err => console.error(`Erro ao cachear ${userId}:`, err));
+      }
+    }
+    
+    // Salva no AsyncStorage
+    await AsyncStorage.setItem('@saved_user_profiles', JSON.stringify(profiles));
+    console.log(`✅ ${savedCount} perfis salvos localmente!`);
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao buscar todos os perfis:', error);
+    return false;
+  }
+};
+
+// Função para buscar informações de outro usuário
+const fetchAndSaveOtherUserInfo = async (userId: string): Promise<string | null> => {
+  try {
+    console.log(`🔍 Buscando informações do usuário: ${userId}`);
+    
+    // Primeiro tenta buscar do cache local
+    const localProfile = await getUserProfileFromLocal(userId);
+    if (localProfile && localProfile.nome && !localProfile.nome.includes('User')) {
+      console.log(`✅ Já tem no cache local: ${localProfile.nome}`);
+      return localProfile.nome;
+    }
+    
+    // Tenta buscar da API de clientes
+    try {
+      console.log(`Tentando API de clientes para ${userId}...`);
+      const response = await fetch(`https://borababy.netlify.app/api/clientes/${userId}`);
+      if (response.ok) {
+        const userData = await response.json();
+        if (userData.nome && userData.nome !== 'Usuário') {
+          console.log(`✅ Encontrado na API de clientes: ${userData.nome}`);
+          await saveUserProfileLocally(userId, userData);
+          return userData.nome;
+        }
+      }
+    } catch (apiError) {
+      console.log(`⚠️ Não encontrou na API de clientes, tentando alternativa...`);
+    }
+    
+    // Tenta buscar da API geral
+    try {
+      console.log(`Tentando API geral para ${userId}...`);
+      const response = await fetch(`https://borababy.netlify.app/api/users/${userId}`);
+      if (response.ok) {
+        const userData = await response.json();
+        if (userData.name && userData.name !== 'Usuário') {
+          console.log(`✅ Encontrado na API geral: ${userData.name}`);
+          await saveUserProfileLocally(userId, userData);
+          return userData.name;
+        }
+      }
+    } catch (generalApiError) {
+      console.log(`⚠️ Também não encontrou na API geral`);
+    }
+    
+    // Tenta buscar da API de chat
+    try {
+      console.log(`Tentando API de chat para ${userId}...`);
+      const userInfo = await chatApi.fetchRealUserInfo(userId);
+      if (userInfo && userInfo.name && !userInfo.name.includes('User')) {
+        console.log(`✅ Encontrado na API de chat: ${userInfo.name}`);
+        await saveUserProfileLocally(userId, { nome: userInfo.name, foto: userInfo.photo });
+        return userInfo.name;
+      }
+    } catch (chatApiError) {
+      console.log(`⚠️ Também não encontrou na API de chat`);
+    }
+    
+    console.log(`❌ Não encontrou informações para o usuário ${userId}`);
+    return null;
+  } catch (error) {
+    console.error(`❌ Erro ao buscar info do usuário ${userId}:`, error);
+    return null;
+  }
+};
+
 // Função para salvar sessão COM CACHE DE NOME
 const saveUserSessionWithCache = async (
   userId: string, 
@@ -96,6 +293,9 @@ const saveUserSessionWithCache = async (
       try {
         await chatApi.cacheUserInfo(userId, userData.nome, userData.foto);
         console.log(`✅ Nome cacheado para chats: ${userData.nome} (ID: ${userId})`);
+        
+        // SALVA TAMBÉM LOCALMENTE PARA REFERÊNCIA FUTURA
+        await saveUserProfileLocally(userId, userData);
       } catch (cacheError) {
         console.error('Erro ao cachear nome do usuário:', cacheError);
       }
@@ -283,6 +483,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (userWithId.nome && userWithId.nome !== 'Usuário') {
             try {
               await chatApi.cacheUserInfo(userId, userWithId.nome, userWithId.foto);
+              await saveUserProfileLocally(userId, userWithId);
             } catch (cacheError) {
               console.error('Erro ao cachear nome na verificação:', cacheError);
             }
@@ -329,8 +530,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // NOVAS FUNÇÕES
+  const fetchUserInfo = async (userId: string): Promise<string | null> => {
+    return await fetchAndSaveOtherUserInfo(userId);
+  };
+
+  const fetchAllUserProfiles = async (): Promise<boolean> => {
+    return await fetchAllUserProfilesFromAPI();
+  };
+
+  const getUserProfileFromLocalContext = async (userId: string): Promise<any> => {
+    return await getUserProfileFromLocal(userId);
+  };
+
   useEffect(() => {
     checkAuth();
+    
+    // Quando o app inicia, tenta buscar todos os perfis (em background)
+    const loadProfiles = async () => {
+      try {
+        const savedProfiles = await AsyncStorage.getItem('@saved_user_profiles');
+        if (!savedProfiles) {
+          // Aguarda um pouco para não travar o login
+          setTimeout(async () => {
+            await fetchAllUserProfilesFromAPI();
+          }, 3000);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfis no startup:', error);
+      }
+    };
+    
+    loadProfiles();
   }, []);
 
   return (
@@ -344,7 +575,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout, 
       checkAuth, 
       updateUser, 
-      refreshUserData 
+      refreshUserData,
+      fetchUserInfo,
+      fetchAllUserProfiles,
+      getUserProfileFromLocal: getUserProfileFromLocalContext
     }}>
       {children}
     </AuthContext.Provider>

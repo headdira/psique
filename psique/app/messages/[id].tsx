@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  StyleSheet,
   SafeAreaView
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -17,15 +16,8 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { chatApi, Message } from '../../src/api/apiChat';
 import { useUserName } from '../../src/hooks/useUserName';
 
-// Cores do projeto
-const BrandColors = {
-  green: '#5FF0A9',
-  offWhite: '#F5F4F2',
-  white: '#FFFFFF',
-  black: '#0E0E0E',
-  gray: '#888888',
-  lightGray: '#E5E5E5',
-};
+// Importar estilos separados
+import { styles, BrandColors } from './chat.styles';
 
 export default function ChatScreen() {
   const { id, name, other_user_id } = useLocalSearchParams();
@@ -34,7 +26,7 @@ export default function ChatScreen() {
   const otherUserId = Array.isArray(other_user_id) ? other_user_id[0] : other_user_id;
   
   const { user } = useAuth();
-  const { userName: otherUserName, userPhoto: otherUserPhoto } = useUserName(otherUserId);
+  const { userName: otherUserName, userPhoto: otherUserPhoto, loading: loadingName } = useUserName(otherUserId);
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -42,24 +34,45 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  // Use o nome real do hook ou o inicial
-  const displayName = otherUserName !== 'Usuário' ? otherUserName : initialName;
+  // Função para obter o nome correto
+  const getDisplayName = () => {
+    // Se o hook retornou um nome real (não genérico)
+    if (otherUserName && otherUserName !== 'Usuário' && !otherUserName.includes('User')) {
+      return otherUserName;
+    }
+    
+    // Se veio um nome inicial (provavelmente do chat preview)
+    if (initialName && initialName !== 'Usuário' && !initialName.includes('User')) {
+      return initialName;
+    }
+    
+    // Último recurso: mostrar ID formatado
+    return otherUserId ? `Usuário ${otherUserId.slice(-4)}` : 'Usuário';
+  };
+
+  const displayName = getDisplayName();
+
+  // Função para cachear as informações do usuário logado
+  const cacheCurrentUserInfo = useCallback(async () => {
+    if (user?.id && user.nome) {
+      try {
+        await chatApi.cacheUserInfo(user.id, user.nome, user.foto);
+        console.log(`✅ Cache do usuário logado: ${user.nome} (ID: ${user.id})`);
+      } catch (error) {
+        console.error('❌ Erro ao cachear usuário logado:', error);
+      }
+    }
+  }, [user]);
 
   useEffect(() => {
     loadMessages();
-    
-    // Atualiza o título da conversa
-    if (user?.id && otherUserId) {
-      // Cache do nome atual do usuário
-      if (user.nome && user.nome !== 'Usuário') {
-        chatApi.cacheUserInfo(user.id, user.nome, user.foto);
-      }
-    }
+    cacheCurrentUserInfo();
   }, [chatId, otherUserId]);
 
   const loadMessages = async () => {
     if (!user?.id || !chatId) return;
     try {
+      setLoading(true);
       const result = await chatApi.getMessages(chatId, user.id);
       if (result.success && result.data) {
         setMessages([...result.data].reverse());
@@ -128,9 +141,15 @@ export default function ChatScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color={BrandColors.black} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {displayName || 'Chat'}
-          </Text>
+          
+          {loadingName ? (
+            <ActivityIndicator size="small" color={BrandColors.green} />
+          ) : (
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {displayName}
+            </Text>
+          )}
+          
           <View style={{ width: 28 }} />
         </View>
 
@@ -177,118 +196,3 @@ export default function ChatScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: BrandColors.white,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: BrandColors.offWhite,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: BrandColors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: BrandColors.lightGray,
-    zIndex: 10,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: BrandColors.black,
-    flex: 1,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-  },
-  messageRow: {
-    flexDirection: 'row',
-    marginVertical: 4,
-    width: '100%',
-  },
-  myMessageContainer: {
-    justifyContent: 'flex-end',
-  },
-  theirMessageContainer: {
-    justifyContent: 'flex-start',
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  myMessageBubble: {
-    backgroundColor: BrandColors.green,
-    borderBottomRightRadius: 4,
-  },
-  theirMessageBubble: {
-    backgroundColor: BrandColors.white,
-    borderWidth: 1,
-    borderColor: BrandColors.lightGray,
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-  },
-  myMessageText: {
-    color: BrandColors.white,
-  },
-  theirMessageText: {
-    color: BrandColors.black,
-  },
-  timeText: {
-    fontSize: 10,
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  myMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  theirMessageTime: {
-    color: BrandColors.gray,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: BrandColors.white,
-    borderTopWidth: 1,
-    borderTopColor: BrandColors.lightGray,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: BrandColors.offWhite,
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: BrandColors.black,
-    maxHeight: 100,
-    marginRight: 12,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: BrandColors.green,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});

@@ -1,3 +1,5 @@
+// ARQUIVO: src/theme/index.ts
+
 export const Colors = {
   primary: '#5FF0A9',
   green: '#5FF0A9',
@@ -8,17 +10,22 @@ export const Colors = {
   gray: '#888888',
   darkGray: '#2B2B2B',
   lightGray: '#E5E5E5',
-  mediumGray: '#999999', // ADICIONADO
-  coral: '#FF6B6B', // ADICIONADO
+  mediumGray: '#999999',
+  coral: '#FF6B6B',
+  red: '#FF6B6B',
   error: '#FF6B6B',
   success: '#5FF0A9',
+  peach: '#FFB994',
+  lilac: '#C7B5FF',
+  blue: '#6E8AFF',
+  teal: '#2EE6CA'
 };
 
 export const Spacing = {
   xs: 4,
   sm: 8,
   md: 16,
-  lg: 24, // ADICIONADO
+  lg: 24,
   xl: 32,
   xxl: 48,
 };

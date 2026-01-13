@@ -6,8 +6,8 @@ export const BrandColors = {
   gray: '#2B2B2B',
   offWhite: '#F5F4F2',
   green: '#5FF0A9',
-  peach: '#2B2B2B',
-  lilac: '#2B2B2B',
+  peach: '#FFB994',
+  lilac: '#C7B5FF',
   blue: '#6E8AFF',
   coral: '#FF6B8B',
   teal: '#2EE6CA'
@@ -202,7 +202,6 @@ export const styles = StyleSheet.create({
   },
   
   // === TITULOS DE SEÇÃO COMPARTILHADOS ===
-  // (Aqui removemos as duplicatas)
   datesSection: { 
     paddingHorizontal: 20, 
     paddingBottom: 100 
@@ -310,30 +309,6 @@ export const styles = StyleSheet.create({
     fontSize: 11, 
     fontWeight: '600', 
     textTransform: 'uppercase' 
-  },
-  imageContainer: { 
-    position: 'relative' 
-  },
-  cardImage: { 
-    width: '100%', 
-    height: 180 
-  },
-  typeBadge: { 
-    position: 'absolute', 
-    top: 12, 
-    left: 12,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 4,
-    backgroundColor: BrandColors.black + 'CC', 
-    paddingHorizontal: 10,
-    paddingVertical: 6, 
-    borderRadius: 20 
-  },
-  typeText: { 
-    fontSize: 12, 
-    fontWeight: '600', 
-    color: Colors.white 
   },
   cardContent: { 
     padding: 16 
